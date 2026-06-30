@@ -134,7 +134,9 @@ export class ClientesService {
     if (!cliente) throw new NotFoundException('Cliente não encontrado');
     if (cliente.status === ClienteStatus.APROVADO) return cliente;
     if (
-      ![ClienteStatus.PENDENTE, ClienteStatus.EM_ANALISE].includes(cliente.status)
+      !([ClienteStatus.PENDENTE, ClienteStatus.EM_ANALISE] as ClienteStatus[]).includes(
+        cliente.status,
+      )
     ) {
       throw new BadRequestException(
         `Não é possível aprovar um cliente com status ${cliente.status}`,

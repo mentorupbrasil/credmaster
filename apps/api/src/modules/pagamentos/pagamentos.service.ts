@@ -51,7 +51,7 @@ export class PagamentosService {
         throw new BadRequestException('Parcela cancelada');
       }
       if (
-        ![EmprestimoStatus.ATIVO, EmprestimoStatus.EM_ATRASO].includes(
+        !([EmprestimoStatus.ATIVO, EmprestimoStatus.EM_ATRASO] as EmprestimoStatus[]).includes(
           parcela.emprestimo.status,
         )
       ) {
@@ -227,7 +227,7 @@ export class PagamentosService {
       include: { parcelas: true },
     });
     if (!emp) return;
-    if ([EmprestimoStatus.CANCELADO].includes(emp.status)) return;
+    if (emp.status === EmprestimoStatus.CANCELADO) return;
 
     // Mantém o saldo de principal cacheado coerente com as parcelas.
     await this.ledger.recalcularSaldoPrincipal(tx, emprestimoId);

@@ -328,7 +328,11 @@ export class EmprestimosService {
   async cancelar(id: string, motivo: string, actorId: string) {
     const emp = await this.prisma.emprestimo.findUnique({ where: { id } });
     if (!emp) throw new NotFoundException('Empréstimo não encontrado');
-    if ([EmprestimoStatus.LIQUIDADO, EmprestimoStatus.CANCELADO].includes(emp.status)) {
+    if (
+      ([EmprestimoStatus.LIQUIDADO, EmprestimoStatus.CANCELADO] as EmprestimoStatus[]).includes(
+        emp.status,
+      )
+    ) {
       throw new BadRequestException('Empréstimo já encerrado');
     }
     await this.prisma.emprestimo.update({
