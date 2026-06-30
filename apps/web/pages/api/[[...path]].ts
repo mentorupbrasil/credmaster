@@ -9,14 +9,14 @@ export const config = {
 
 const require = createRequire(path.join(process.cwd(), 'package.json'));
 
-function loadServerlessModule() {
+function loadApiModule() {
   const bundled = path.join(process.cwd(), '.api-dist/serverless.js');
   const dev = path.join(process.cwd(), '../api/dist/serverless.js');
   const fs = require('node:fs');
   const target = fs.existsSync(bundled) ? bundled : dev;
   return require(target) as {
-    getServerlessHandler: () => Promise<
-      (req: unknown, res: unknown, next: (err?: unknown) => void) => void
+    getExpressApp: () => Promise<
+      (req: NextApiRequest, res: NextApiResponse, next: (err?: unknown) => void) => void
     >;
   };
 }
@@ -32,14 +32,14 @@ function patchUrl(req: NextApiRequest) {
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     patchUrl(req);
-    const { getServerlessHandler } = loadServerlessModule();
-    const server = await getServerlessHandler();
+    const { getExpressApp } = loadApiModule();
+    const app = await getExpressApp();
 
     await new Promise<void>((resolve, reject) => {
       res.once('finish', () => resolve());
       res.once('close', () => resolve());
       res.once('error', reject);
-      server(req, res, (err?: unknown) => {
+      app(req, res, (err?: unknown) => {
         if (err) reject(err instanceof Error ? err : new Error(String(err)));
       });
     });
@@ -47,10 +47,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const detail = err instanceof Error ? err.message : String(err);
     console.error('API handler error:', detail, err);
     if (!res.headersSent) {
-      res.status(500).json({
-        statusCode: 500,
-        message: detail,
-      });
+      res.status(500).json({ statusCode: 500, message: detail });
     }
   }
 }
