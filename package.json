@@ -1,0 +1,33 @@
+{
+  "name": "credmaster",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CredMaster - Plataforma de gestão de crédito para instituição financeira regulamentada",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "api:dev": "npm --workspace @credmaster/api run start:dev",
+    "api:build": "npm --workspace @credmaster/api run build",
+    "api:start": "npm --workspace @credmaster/api run start:prod",
+    "api:test": "npm --workspace @credmaster/api run test",
+    "api:migrate": "npm --workspace @credmaster/api run prisma:migrate",
+    "api:migrate:deploy": "npm --workspace @credmaster/api run prisma:migrate:deploy",
+    "api:generate": "npm --workspace @credmaster/api run prisma:generate",
+    "api:seed": "npm --workspace @credmaster/api run prisma:seed",
+    "web:dev": "npm --workspace @credmaster/web run dev",
+    "web:build": "npm --workspace @credmaster/web run build",
+    "web:start": "npm --workspace @credmaster/web run start",
+    "dev": "concurrently -n api,web -c blue,magenta \"npm:api:dev\" \"npm:web:dev\"",
+    "lint": "npm --workspace @credmaster/api run lint",
+    "format": "prettier --write \"apps/**/*.{ts,tsx}\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "prettier": "^3.3.3"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

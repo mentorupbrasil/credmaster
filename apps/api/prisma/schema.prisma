@@ -1,0 +1,544 @@
+// =============================================================================
+//  CredMaster - Schema de dados
+//  Banco: PostgreSQL (Neon)
+//
+//  Princípios:
+//   - Dinheiro SEMPRE em Decimal (nunca float). Valores monetários: Decimal(18,2).
+//     Taxas/percentuais: Decimal(12,8).
+//   - Livro-razão (LedgerEntry) é APPEND-ONLY e é a fonte da verdade do saldo.
+//   - Pagamentos são imutáveis; correções ocorrem via estorno (novo lançamento).
+//   - Auditoria completa (AuditLog) + consentimento LGPD versionado.
+//   - Job diário idempotente via JobExecution (chave única por data).
+// =============================================================================
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["metrics"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ----------------------------------------------------------------------------
+// Enums
+// ----------------------------------------------------------------------------
+
+enum Role {
+  ADMIN
+  ANALISTA
+  CLIENTE
+}
+
+enum UserStatus {
+  ATIVO
+  INATIVO
+  BLOQUEADO
+}
+
+enum ClienteStatus {
+  PENDENTE
+  EM_ANALISE
+  APROVADO
+  REPROVADO
+  BLOQUEADO
+  INATIVO
+}
+
+enum TipoAmortizacao {
+  PRICE // Parcelas fixas (Tabela Price)
+  SAC // Amortização constante
+  BULLET // Juros periódicos + principal no vencimento final
+}
+
+enum Periodicidade {
+  MENSAL
+  QUINZENAL
+  SEMANAL
+  ANUAL
+}
+
+enum EmprestimoStatus {
+  RASCUNHO
+  AGUARDANDO_APROVACAO
+  APROVADO
+  ATIVO
+  EM_ATRASO
+  LIQUIDADO
+  INADIMPLENTE
+  CANCELADO
+}
+
+enum ParcelaTipo {
+  JUROS // Somente juros (ex.: BULLET)
+  AMORTIZACAO // Somente amortização de principal
+  PRINCIPAL // Principal (parcela final BULLET)
+  MISTA // Principal + Juros (PRICE/SAC)
+}
+
+enum ParcelaStatus {
+  PENDENTE
+  PARCIAL
+  PAGA
+  VENCIDA
+  CANCELADA
+}
+
+enum PagamentoForma {
+  PIX
+  BOLETO
+  TED
+  DOC
+  DINHEIRO
+  CARTAO
+  OUTRO
+}
+
+enum PagamentoStatus {
+  CONFIRMADO
+  ESTORNADO
+}
+
+enum LedgerTipo {
+  DESEMBOLSO // Liberação do crédito (aumenta saldo devedor)
+  JUROS_CONTRATUAL // Apropriação de juros do contrato
+  JUROS_MORA // Juros de mora por atraso
+  MULTA // Multa por atraso
+  PAGAMENTO // Pagamento recebido (reduz saldo)
+  ESTORNO // Estorno de pagamento/lançamento
+  AJUSTE // Ajuste manual auditável
+  BAIXA // Baixa/perda (write-off)
+}
+
+enum LedgerDirecao {
+  DEBITO // Aumenta o saldo devedor do cliente
+  CREDITO // Reduz o saldo devedor do cliente
+}
+
+enum NotificacaoCanal {
+  EMAIL
+  SMS
+  PUSH
+  WHATSAPP
+  IN_APP
+}
+
+enum NotificacaoTipo {
+  CADASTRO_APROVADO
+  CADASTRO_REPROVADO
+  EMPRESTIMO_CRIADO
+  VENCIMENTO_PROXIMO
+  VENCIMENTO_HOJE
+  ATRASO
+  PAGAMENTO_CONFIRMADO
+  EMPRESTIMO_LIQUIDADO
+}
+
+enum NotificacaoStatus {
+  PENDENTE
+  ENVIADA
+  FALHA
+}
+
+enum ConsentimentoTipo {
+  TERMOS_DE_USO
+  POLITICA_PRIVACIDADE
+  TRATAMENTO_DADOS
+  CONSULTA_BUREAU
+}
+
+enum JobStatus {
+  EXECUTANDO
+  CONCLUIDO
+  FALHA
+}
+
+// ----------------------------------------------------------------------------
+// Autenticação & Identidade
+// ----------------------------------------------------------------------------
+
+model User {
+  id           String     @id @default(uuid()) @db.Uuid
+  email        String     @unique
+  passwordHash String
+  nome         String
+  role         Role       @default(CLIENTE)
+  status       UserStatus @default(ATIVO)
+
+  // Vínculo opcional com um Cliente (quando role = CLIENTE)
+  cliente   Cliente? @relation(fields: [clienteId], references: [id])
+  clienteId String?  @unique @db.Uuid
+
+  // Segurança
+  ultimoLoginEm    DateTime?
+  tentativasFalhas Int       @default(0)
+  bloqueadoAte     DateTime?
+
+  refreshTokens RefreshToken[]
+  auditLogs     AuditLog[]     @relation("AuditActor")
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([role])
+  @@index([status])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid()) @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String   @db.Uuid
+  tokenHash String   @unique // hash do refresh token (nunca o token cru)
+  expiresAt DateTime
+  revokedAt DateTime?
+  replacedBy String?  @db.Uuid // rotação de tokens
+  userAgent String?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+// ----------------------------------------------------------------------------
+// Cliente (tomador) & dados pessoais (LGPD)
+// ----------------------------------------------------------------------------
+
+model Cliente {
+  id        String        @id @default(uuid()) @db.Uuid
+  nome      String
+  cpf       String        @unique // armazenar somente dígitos
+  rg        String?
+  dataNascimento DateTime?
+  telefone  String
+  email     String        @unique
+  rendaMensal Decimal?    @db.Decimal(18, 2)
+  status    ClienteStatus @default(PENDENTE)
+
+  // Análise de cadastro
+  aprovadoPor   String?   @db.Uuid
+  aprovadoEm    DateTime?
+  motivoReprovacao String?
+
+  user           User?
+  enderecos      Endereco[]
+  emprestimos    Emprestimo[]
+  notificacoes   Notificacao[]
+  consentimentos ConsentimentoLGPD[]
+  documentos     DocumentoCliente[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([status])
+  @@index([cpf])
+  @@map("clientes")
+}
+
+model Endereco {
+  id          String  @id @default(uuid()) @db.Uuid
+  cliente     Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  clienteId   String  @db.Uuid
+  logradouro  String
+  numero      String?
+  complemento String?
+  bairro      String?
+  cidade      String
+  uf          String  @db.Char(2)
+  cep         String
+  principal   Boolean @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([clienteId])
+  @@map("enderecos")
+}
+
+model DocumentoCliente {
+  id        String   @id @default(uuid()) @db.Uuid
+  cliente   Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  clienteId String   @db.Uuid
+  tipo      String // RG, CPF, COMPROVANTE_RENDA, COMPROVANTE_ENDERECO...
+  url       String
+  createdAt DateTime @default(now())
+
+  @@index([clienteId])
+  @@map("documentos_cliente")
+}
+
+model ConsentimentoLGPD {
+  id        String            @id @default(uuid()) @db.Uuid
+  cliente   Cliente           @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  clienteId String            @db.Uuid
+  tipo      ConsentimentoTipo
+  versao    String // versão do documento aceito
+  aceito    Boolean
+  ip        String?
+  userAgent String?
+  createdAt DateTime          @default(now())
+
+  @@index([clienteId, tipo])
+  @@map("consentimentos_lgpd")
+}
+
+// ----------------------------------------------------------------------------
+// Produto de crédito & Empréstimos
+// ----------------------------------------------------------------------------
+
+model ProdutoCredito {
+  id                 String          @id @default(uuid()) @db.Uuid
+  nome               String          @unique
+  descricao          String?
+  tipoAmortizacao    TipoAmortizacao
+  periodicidade      Periodicidade   @default(MENSAL)
+  taxaJurosMes       Decimal         @db.Decimal(12, 8) // ex.: 0.02000000 = 2% a.m.
+  multaAtrasoPercent Decimal         @db.Decimal(12, 8) // sobre a parcela vencida
+  jurosMoraMesPercent Decimal        @db.Decimal(12, 8) // mora ao mês (pro-rata dia)
+  prazoMinMeses      Int             @default(1)
+  prazoMaxMeses      Int             @default(60)
+  valorMin           Decimal         @db.Decimal(18, 2)
+  valorMax           Decimal         @db.Decimal(18, 2)
+  ativo              Boolean         @default(true)
+
+  emprestimos Emprestimo[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("produtos_credito")
+}
+
+model Emprestimo {
+  id        String  @id @default(uuid()) @db.Uuid
+  cliente   Cliente @relation(fields: [clienteId], references: [id])
+  clienteId String  @db.Uuid
+
+  produto   ProdutoCredito? @relation(fields: [produtoId], references: [id])
+  produtoId String?         @db.Uuid
+
+  numeroContrato String @unique // gerado: CM-AAAA-NNNNNN
+
+  // Condições financeiras (snapshot no momento da contratação)
+  valorPrincipal      Decimal         @db.Decimal(18, 2)
+  taxaJurosMes        Decimal         @db.Decimal(12, 8)
+  multaAtrasoPercent  Decimal         @db.Decimal(12, 8)
+  jurosMoraMesPercent Decimal         @db.Decimal(12, 8)
+  tipoAmortizacao     TipoAmortizacao
+  periodicidade       Periodicidade   @default(MENSAL)
+  prazoMeses          Int
+  diaVencimento       Int // dia do mês do vencimento (1-28)
+
+  // Métricas calculadas
+  cetMes  Decimal? @db.Decimal(12, 8) // Custo Efetivo Total ao mês
+  cetAno  Decimal? @db.Decimal(12, 8) // CET ao ano
+  totalJuros Decimal? @db.Decimal(18, 2)
+  totalAPagar Decimal? @db.Decimal(18, 2)
+
+  dataContratacao DateTime
+  dataLiberacao   DateTime?
+  dataFinal       DateTime
+  dataLiquidacao  DateTime?
+
+  status EmprestimoStatus @default(RASCUNHO)
+
+  aprovadoPor String?   @db.Uuid
+  aprovadoEm  DateTime?
+  canceladoPor String?  @db.Uuid
+  canceladoEm DateTime?
+  motivoCancelamento String?
+
+  parcelas     Parcela[]
+  pagamentos   Pagamento[]
+  ledger       LedgerEntry[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clienteId])
+  @@index([status])
+  @@index([dataFinal])
+  @@map("emprestimos")
+}
+
+model Parcela {
+  id           String       @id @default(uuid()) @db.Uuid
+  emprestimo   Emprestimo   @relation(fields: [emprestimoId], references: [id], onDelete: Cascade)
+  emprestimoId String       @db.Uuid
+
+  numero     Int
+  tipo       ParcelaTipo
+  vencimento DateTime     @db.Date
+
+  // Composição planejada da parcela
+  valorPrincipal Decimal @db.Decimal(18, 2) @default(0)
+  valorJuros     Decimal @db.Decimal(18, 2) @default(0)
+  valorParcela   Decimal @db.Decimal(18, 2) // principal + juros previstos
+  saldoDevedorApos Decimal @db.Decimal(18, 2) @default(0) // saldo de principal após a parcela
+
+  // Encargos por atraso acumulados nesta parcela
+  multa       Decimal @db.Decimal(18, 2) @default(0)
+  jurosMora   Decimal @db.Decimal(18, 2) @default(0)
+  diasAtraso  Int     @default(0)
+
+  // Realização
+  valorPago      Decimal   @db.Decimal(18, 2) @default(0)
+  dataPagamento  DateTime?
+  status         ParcelaStatus @default(PENDENTE)
+
+  // Idempotência do cálculo de mora: data do último processamento
+  moraCalculadaAte DateTime? @db.Date
+
+  pagamentos Pagamento[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([emprestimoId, numero])
+  @@index([vencimento])
+  @@index([status])
+  @@map("parcelas")
+}
+
+model Pagamento {
+  id           String          @id @default(uuid()) @db.Uuid
+  emprestimo   Emprestimo      @relation(fields: [emprestimoId], references: [id])
+  emprestimoId String          @db.Uuid
+  parcela      Parcela?        @relation(fields: [parcelaId], references: [id])
+  parcelaId    String?         @db.Uuid
+
+  valor        Decimal         @db.Decimal(18, 2)
+  forma        PagamentoForma
+  status       PagamentoStatus @default(CONFIRMADO)
+  dataPagamento DateTime
+  comprovante  String?
+  observacao   String?
+
+  // Estorno (imutabilidade: nunca editamos/deletamos, criamos estorno)
+  estornadoPor   String?    @db.Uuid
+  estornadoEm    DateTime?
+  motivoEstorno  String?
+  pagamentoOrigemId String? @db.Uuid // se este lançamento é o estorno de outro
+
+  registradoPor String?  @db.Uuid
+
+  createdAt DateTime @default(now())
+
+  @@index([emprestimoId])
+  @@index([parcelaId])
+  @@index([status])
+  @@map("pagamentos")
+}
+
+// ----------------------------------------------------------------------------
+// Livro-razão (append-only) - fonte da verdade do saldo devedor
+// ----------------------------------------------------------------------------
+
+model LedgerEntry {
+  id           String        @id @default(uuid()) @db.Uuid
+  emprestimo   Emprestimo    @relation(fields: [emprestimoId], references: [id], onDelete: Cascade)
+  emprestimoId String        @db.Uuid
+  parcelaId    String?       @db.Uuid
+
+  tipo        LedgerTipo
+  direcao     LedgerDirecao
+  valor       Decimal       @db.Decimal(18, 2) // sempre positivo; direção define o sinal
+  saldoApos   Decimal       @db.Decimal(18, 2) // saldo devedor após o lançamento (snapshot)
+  competencia DateTime      @db.Date
+  descricao   String
+
+  // Chave de idempotência (ex.: "mora:<parcelaId>:2026-07-15")
+  idempotencyKey String? @unique
+
+  metadata  Json?
+  criadoPor String?  @db.Uuid
+
+  createdAt DateTime @default(now())
+
+  @@index([emprestimoId, createdAt])
+  @@index([tipo])
+  @@map("ledger_entries")
+}
+
+// ----------------------------------------------------------------------------
+// Notificações
+// ----------------------------------------------------------------------------
+
+model Notificacao {
+  id        String            @id @default(uuid()) @db.Uuid
+  cliente   Cliente           @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  clienteId String            @db.Uuid
+  canal     NotificacaoCanal
+  tipo      NotificacaoTipo
+  titulo    String
+  mensagem  String
+  status    NotificacaoStatus @default(PENDENTE)
+  lida      Boolean           @default(false)
+  payload   Json?
+  enviadaEm DateTime?
+  erro      String?
+
+  // Idempotência (ex.: "vencimento_hoje:<parcelaId>:2026-07-01")
+  idempotencyKey String? @unique
+
+  createdAt DateTime @default(now())
+
+  @@index([clienteId])
+  @@index([status])
+  @@map("notificacoes")
+}
+
+// ----------------------------------------------------------------------------
+// Auditoria & Configuração
+// ----------------------------------------------------------------------------
+
+model AuditLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  actor     User?    @relation("AuditActor", fields: [actorId], references: [id])
+  actorId   String?  @db.Uuid
+  acao      String // ex.: "EMPRESTIMO_APROVADO"
+  entidade  String // ex.: "Emprestimo"
+  entidadeId String?
+  antes     Json?
+  depois    Json?
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([entidade, entidadeId])
+  @@index([actorId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model ParametroSistema {
+  id          String   @id @default(uuid()) @db.Uuid
+  chave       String   @unique
+  valor       String
+  descricao   String?
+  atualizadoPor String? @db.Uuid
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+
+  @@map("parametros_sistema")
+}
+
+model JobExecution {
+  id         String    @id @default(uuid()) @db.Uuid
+  nome       String // ex.: "cobranca-diaria"
+  chave      String // ex.: "cobranca-diaria:2026-07-01"
+  status     JobStatus @default(EXECUTANDO)
+  iniciadoEm DateTime  @default(now())
+  finalizadoEm DateTime?
+  stats      Json?
+  erro       String?
+
+  @@unique([nome, chave])
+  @@index([status])
+  @@map("job_executions")
+}
