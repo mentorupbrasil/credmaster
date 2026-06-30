@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { api } from '@/lib/api';
 import { cpfMask } from '@/lib/format';
 import { Badge, Spinner, ErrorBox } from '@/components/ui';
+import { useFeedback } from '@/components/feedback';
 
 interface Cliente {
   id: string;
@@ -23,6 +24,7 @@ export default function ClientesPage() {
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [q, setQ] = useState('');
+  const { toast, confirm, prompt } = useFeedback();
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -43,14 +45,37 @@ export default function ClientesPage() {
   }, [carregar]);
 
   async function aprovar(id: string) {
-    await api.post(`/clientes/${id}/aprovar`);
-    carregar();
+    const ok = await confirm({
+      titulo: 'Aprovar cliente',
+      mensagem: 'Confirmar a aprovação deste cliente?',
+      confirmar: 'Aprovar',
+    });
+    if (!ok) return;
+    try {
+      await api.post(`/clientes/${id}/aprovar`);
+      toast('Cliente aprovado.', 'success');
+      carregar();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Erro ao aprovar', 'error');
+    }
   }
   async function reprovar(id: string) {
-    const motivo = prompt('Motivo da reprovação:');
+    const motivo = await prompt({
+      titulo: 'Reprovar cliente',
+      mensagem: 'Informe o motivo da reprovação.',
+      placeholder: 'Motivo…',
+      obrigatorio: true,
+      perigo: true,
+      confirmar: 'Reprovar',
+    });
     if (!motivo) return;
-    await api.post(`/clientes/${id}/reprovar`, { motivo });
-    carregar();
+    try {
+      await api.post(`/clientes/${id}/reprovar`, { motivo });
+      toast('Cliente reprovado.', 'success');
+      carregar();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Erro ao reprovar', 'error');
+    }
   }
 
   return (

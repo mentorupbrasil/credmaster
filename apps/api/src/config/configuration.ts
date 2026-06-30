@@ -1,5 +1,6 @@
 export default () => ({
   env: process.env.NODE_ENV ?? 'development',
+  nodeEnv: process.env.NODE_ENV ?? 'development',
   port: parseInt(process.env.PORT ?? '3333', 10),
   apiPrefix: process.env.API_PREFIX ?? 'api',
   corsOrigins: (process.env.CORS_ORIGINS ?? 'http://localhost:3000')
@@ -7,6 +8,15 @@ export default () => ({
     .map((s) => s.trim())
     .filter(Boolean),
   timezone: process.env.TIMEZONE ?? 'America/Sao_Paulo',
+  app: {
+    webUrl: process.env.WEB_URL ?? 'http://localhost:3001',
+  },
+  mail: {
+    from: process.env.MAIL_FROM ?? 'no-reply@credmaster.local',
+  },
+  sentry: {
+    dsn: process.env.SENTRY_DSN ?? '',
+  },
   jwt: {
     accessSecret: process.env.JWT_ACCESS_SECRET as string,
     refreshSecret: process.env.JWT_REFRESH_SECRET as string,
@@ -28,5 +38,15 @@ export default () => ({
   regulatorio: {
     multaMaxPercent: process.env.PARAM_MULTA_MAX_PERCENT ?? '2',
     jurosMoraMaxMesPercent: process.env.PARAM_JUROS_MORA_MAX_MES_PERCENT ?? '1',
+    // Teto de juros remuneratórios ao mês (anti-usura). Configurável.
+    taxaJurosMaxMesPercent: process.env.PARAM_TAXA_JUROS_MAX_MES_PERCENT ?? '12',
+    // Limites globais de valor/prazo quando não há produto vinculado.
+    valorMinGlobal: process.env.PARAM_VALOR_MIN_GLOBAL ?? '100',
+    valorMaxGlobal: process.env.PARAM_VALOR_MAX_GLOBAL ?? '1000000',
+    prazoMinGlobalMeses: parseInt(process.env.PARAM_PRAZO_MIN_GLOBAL ?? '1', 10),
+    prazoMaxGlobalMeses: parseInt(process.env.PARAM_PRAZO_MAX_GLOBAL ?? '120', 10),
+    // IOF (Brasil): alíquota diária + alíquota adicional fixa.
+    iofDiarioPercent: process.env.PARAM_IOF_DIARIO_PERCENT ?? '0.0082',
+    iofAdicionalPercent: process.env.PARAM_IOF_ADICIONAL_PERCENT ?? '0.38',
   },
 });

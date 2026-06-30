@@ -6,6 +6,13 @@ import { dec, percentToRate, Decimal } from '../../domain/finance/money';
 export const PARAM_KEYS = {
   MULTA_MAX_PERCENT: 'regulatorio.multa_max_percent',
   JUROS_MORA_MAX_MES_PERCENT: 'regulatorio.juros_mora_max_mes_percent',
+  TAXA_JUROS_MAX_MES_PERCENT: 'regulatorio.taxa_juros_max_mes_percent',
+  VALOR_MIN_GLOBAL: 'regulatorio.valor_min_global',
+  VALOR_MAX_GLOBAL: 'regulatorio.valor_max_global',
+  PRAZO_MIN_GLOBAL: 'regulatorio.prazo_min_global',
+  PRAZO_MAX_GLOBAL: 'regulatorio.prazo_max_global',
+  IOF_DIARIO_PERCENT: 'regulatorio.iof_diario_percent',
+  IOF_ADICIONAL_PERCENT: 'regulatorio.iof_adicional_percent',
 } as const;
 
 @Injectable()
@@ -36,6 +43,13 @@ export class ParametrosService {
   async getLimitesRegulatorios(): Promise<{
     multaMax: Decimal;
     jurosMoraMaxMes: Decimal;
+    taxaJurosMaxMes: Decimal;
+    valorMinGlobal: Decimal;
+    valorMaxGlobal: Decimal;
+    prazoMinGlobal: number;
+    prazoMaxGlobal: number;
+    iofDiario: Decimal;
+    iofAdicional: Decimal;
   }> {
     const multaStr =
       (await this.get(PARAM_KEYS.MULTA_MAX_PERCENT)) ??
@@ -43,10 +57,38 @@ export class ParametrosService {
     const moraStr =
       (await this.get(PARAM_KEYS.JUROS_MORA_MAX_MES_PERCENT)) ??
       this.config.get<string>('regulatorio.jurosMoraMaxMesPercent', '1');
+    const taxaMaxStr =
+      (await this.get(PARAM_KEYS.TAXA_JUROS_MAX_MES_PERCENT)) ??
+      this.config.get<string>('regulatorio.taxaJurosMaxMesPercent', '12');
+    const valorMinStr =
+      (await this.get(PARAM_KEYS.VALOR_MIN_GLOBAL)) ??
+      this.config.get<string>('regulatorio.valorMinGlobal', '100');
+    const valorMaxStr =
+      (await this.get(PARAM_KEYS.VALOR_MAX_GLOBAL)) ??
+      this.config.get<string>('regulatorio.valorMaxGlobal', '1000000');
+    const prazoMinStr =
+      (await this.get(PARAM_KEYS.PRAZO_MIN_GLOBAL)) ??
+      String(this.config.get<number>('regulatorio.prazoMinGlobalMeses', 1));
+    const prazoMaxStr =
+      (await this.get(PARAM_KEYS.PRAZO_MAX_GLOBAL)) ??
+      String(this.config.get<number>('regulatorio.prazoMaxGlobalMeses', 120));
+    const iofDiarioStr =
+      (await this.get(PARAM_KEYS.IOF_DIARIO_PERCENT)) ??
+      this.config.get<string>('regulatorio.iofDiarioPercent', '0.0082');
+    const iofAdicionalStr =
+      (await this.get(PARAM_KEYS.IOF_ADICIONAL_PERCENT)) ??
+      this.config.get<string>('regulatorio.iofAdicionalPercent', '0.38');
 
     return {
       multaMax: percentToRate(dec(multaStr)),
       jurosMoraMaxMes: percentToRate(dec(moraStr)),
+      taxaJurosMaxMes: percentToRate(dec(taxaMaxStr)),
+      valorMinGlobal: dec(valorMinStr),
+      valorMaxGlobal: dec(valorMaxStr),
+      prazoMinGlobal: parseInt(prazoMinStr, 10),
+      prazoMaxGlobal: parseInt(prazoMaxStr, 10),
+      iofDiario: percentToRate(dec(iofDiarioStr)),
+      iofAdicional: percentToRate(dec(iofAdicionalStr)),
     };
   }
 }

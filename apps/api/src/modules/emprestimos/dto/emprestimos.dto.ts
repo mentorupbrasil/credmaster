@@ -11,7 +11,7 @@ import {
   Max,
   Min,
 } from 'class-validator';
-import { TipoAmortizacao } from '@prisma/client';
+import { PagamentoForma, TipoAmortizacao } from '@prisma/client';
 
 export class SimularEmprestimoDto {
   @ApiProperty({ example: 10000 })
@@ -86,4 +86,16 @@ export class CancelarEmprestimoDto {
   @ApiProperty()
   @IsString()
   motivo!: string;
+}
+
+export class QuitarEmprestimoDto {
+  @ApiPropertyOptional({ enum: PagamentoForma, example: PagamentoForma.PIX })
+  @IsOptional()
+  @IsEnum(PagamentoForma)
+  forma?: PagamentoForma;
+
+  @ApiPropertyOptional({ example: 'Quitação antecipada solicitada pelo cliente' })
+  @IsOptional()
+  @IsString()
+  observacao?: string;
 }

@@ -63,6 +63,14 @@ export default function LoginPage() {
           <button className="btn-primary w-full" disabled={loading}>
             {loading ? 'Entrando…' : 'Entrar'}
           </button>
+          <div className="flex items-center justify-between text-sm">
+            <Link href="/esqueci-senha" className="text-slate-500 hover:text-brand-600">
+              Esqueci a senha
+            </Link>
+            <Link href="/simular" className="text-slate-500 hover:text-brand-600">
+              Simular crédito
+            </Link>
+          </div>
           <p className="text-center text-sm text-slate-500">
             Não tem conta?{' '}
             <Link href="/register" className="font-medium text-brand-600">

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { FeedbackProvider } from '../components/feedback';
 
 export const metadata: Metadata = {
   title: 'CredMaster',
@@ -13,7 +14,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-BR">
-      <body>{children}</body>
+      <body>
+        <FeedbackProvider>{children}</FeedbackProvider>
+      </body>
     </html>
   );
 }

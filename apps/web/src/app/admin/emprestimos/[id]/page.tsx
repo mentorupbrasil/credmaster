@@ -4,12 +4,14 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { brl, dataBR, percent } from '@/lib/format';
 import { Badge, Spinner, ErrorBox, Stat } from '@/components/ui';
+import { useFeedback } from '@/components/feedback';
 
 export default function EmprestimoDetalhe({ params }: { params: { id: string } }) {
   const [emp, setEmp] = useState<any>(null);
   const [pagamentos, setPagamentos] = useState<any[]>([]);
   const [erro, setErro] = useState<string | null>(null);
   const [acao, setAcao] = useState(false);
+  const { toast, confirm, prompt } = useFeedback();
 
   const carregar = useCallback(async () => {
     try {
@@ -27,12 +29,19 @@ export default function EmprestimoDetalhe({ params }: { params: { id: string } }
   }, [carregar]);
 
   async function liberar() {
+    const ok = await confirm({
+      titulo: 'Liberar crédito',
+      mensagem: 'Confirmar o desembolso e ativação deste contrato?',
+      confirmar: 'Liberar',
+    });
+    if (!ok) return;
     setAcao(true);
     try {
       await api.post(`/emprestimos/${params.id}/liberar`);
+      toast('Crédito liberado.', 'success');
       await carregar();
     } catch (e) {
-      setErro(e instanceof Error ? e.message : 'Erro');
+      toast(e instanceof Error ? e.message : 'Erro ao liberar', 'error');
     } finally {
       setAcao(false);
     }
@@ -45,17 +54,52 @@ export default function EmprestimoDetalhe({ params }: { params: { id: string } }
       Number(parcela.jurosMora) -
       Number(parcela.valorPago)
     ).toFixed(2);
-    const valorStr = prompt(`Valor do pagamento (em aberto: R$ ${emAberto})`, emAberto);
+    const valorStr = await prompt({
+      titulo: `Registrar pagamento — parcela ${parcela.numero}`,
+      mensagem: `Valor em aberto: R$ ${emAberto}`,
+      placeholder: 'Valor (ex.: 250.00)',
+      valorInicial: emAberto,
+      obrigatorio: true,
+      confirmar: 'Pagar',
+    });
     if (!valorStr) return;
+    const valor = Number(valorStr.replace(',', '.'));
+    if (!Number.isFinite(valor) || valor <= 0) {
+      toast('Valor inválido.', 'error');
+      return;
+    }
     try {
       await api.post(`/emprestimos/${params.id}/pagamentos`, {
         parcelaId: parcela.id,
-        valor: Number(valorStr),
+        valor,
         forma: 'PIX',
       });
+      toast('Pagamento registrado.', 'success');
       await carregar();
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Erro');
+      toast(e instanceof Error ? e.message : 'Erro ao registrar', 'error');
+    }
+  }
+
+  async function quitar() {
+    try {
+      const prev = await api.get<any>(`/emprestimos/${params.id}/quitacao`);
+      const ok = await confirm({
+        titulo: 'Quitação antecipada',
+        mensagem: `Valor de quitação hoje: ${brl(prev.valorQuitacao)}. Abatimento de juros futuros: ${brl(
+          prev.abatimentoJurosFuturos,
+        )}. Confirmar?`,
+        confirmar: 'Quitar',
+      });
+      if (!ok) return;
+      setAcao(true);
+      await api.post(`/emprestimos/${params.id}/quitar`, { forma: 'PIX' });
+      toast('Contrato quitado.', 'success');
+      await carregar();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Erro ao quitar', 'error');
+    } finally {
+      setAcao(false);
     }
   }
 
@@ -76,6 +120,11 @@ export default function EmprestimoDetalhe({ params }: { params: { id: string } }
               {acao ? 'Liberando…' : 'Liberar crédito'}
             </button>
           )}
+          {['ATIVO', 'EM_ATRASO', 'INADIMPLENTE'].includes(emp.status) && (
+            <button className="btn-ghost" onClick={quitar} disabled={acao}>
+              {acao ? 'Processando…' : 'Quitar antecipadamente'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -83,6 +132,7 @@ export default function EmprestimoDetalhe({ params }: { params: { id: string } }
         <Stat label="Principal" value={brl(emp.valorPrincipal)} />
         <Stat label="Saldo devedor" value={brl(r.saldoDevedor)} />
         <Stat label="Total a pagar" value={brl(emp.totalAPagar)} />
+        <Stat label="IOF" value={brl(emp.iof ?? 0)} />
         <Stat label="CET" value={`${percent(emp.cetMes)} a.m.`} hint={`${percent(emp.cetAno)} a.a.`} />
         <Stat label="Próximo vencimento" value={dataBR(r.proximoVencimento)} />
         <Stat label="Valor próxima parcela" value={brl(r.valorProximaParcela)} />

@@ -45,6 +45,13 @@ export class ClientesController {
     return this.clientes.adicionarEndereco(user.clienteId, dto);
   }
 
+  // LGPD: titular exporta os próprios dados.
+  @Get('me/dados')
+  meusDados(@CurrentUser() user: AuthUser) {
+    if (!user.clienteId) throw new ForbiddenException('Apenas clientes');
+    return this.clientes.exportarDados(user.clienteId, user.sub);
+  }
+
   // -------- Back-office (ADMIN / ANALISTA) --------
   @Roles(Role.ADMIN, Role.ANALISTA)
   @Get()
@@ -118,5 +125,24 @@ export class ClientesController {
     @Body() dto: EnderecoDto,
   ) {
     return this.clientes.adicionarEndereco(id, dto);
+  }
+
+  // -------- LGPD --------
+  @Roles(Role.ADMIN, Role.ANALISTA)
+  @Get(':id/dados')
+  exportarDados(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('sub') actorId: string,
+  ) {
+    return this.clientes.exportarDados(id, actorId);
+  }
+
+  @Roles(Role.ADMIN)
+  @Post(':id/anonimizar')
+  anonimizar(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('sub') actorId: string,
+  ) {
+    return this.clientes.anonimizar(id, actorId);
   }
 }

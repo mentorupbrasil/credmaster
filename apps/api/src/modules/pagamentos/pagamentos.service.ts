@@ -229,6 +229,9 @@ export class PagamentosService {
     if (!emp) return;
     if ([EmprestimoStatus.CANCELADO].includes(emp.status)) return;
 
+    // Mantém o saldo de principal cacheado coerente com as parcelas.
+    await this.ledger.recalcularSaldoPrincipal(tx, emprestimoId);
+
     const hoje = toUtcDate(new Date());
     const abertas = emp.parcelas.filter(
       (p) => p.status !== ParcelaStatus.PAGA && p.status !== ParcelaStatus.CANCELADA,

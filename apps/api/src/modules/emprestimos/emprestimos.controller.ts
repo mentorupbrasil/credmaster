@@ -11,8 +11,10 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { EmprestimoStatus, Role } from '@prisma/client';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 import {
   AuthUser,
   CurrentUser,
@@ -21,6 +23,7 @@ import { EmprestimosService } from './emprestimos.service';
 import {
   CancelarEmprestimoDto,
   CreateEmprestimoDto,
+  QuitarEmprestimoDto,
   SimularEmprestimoDto,
 } from './dto/emprestimos.dto';
 
@@ -29,6 +32,15 @@ import {
 @Controller({ path: 'emprestimos', version: '1' })
 export class EmprestimosController {
   constructor(private readonly emprestimos: EmprestimosService) {}
+
+  // -------- Público --------
+  @Public()
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  @HttpCode(HttpStatus.OK)
+  @Post('simular-publico')
+  simularPublico(@Body() dto: SimularEmprestimoDto) {
+    return this.emprestimos.simular(dto);
+  }
 
   // -------- Cliente --------
   @Get('meus')
@@ -44,6 +56,16 @@ export class EmprestimosController {
   ) {
     if (!user.clienteId) throw new ForbiddenException('Apenas clientes');
     return this.emprestimos.buscarDoCliente(id, user.clienteId);
+  }
+
+  @Get('meus/:id/quitacao')
+  async meuPreviewQuitacao(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    if (!user.clienteId) throw new ForbiddenException('Apenas clientes');
+    await this.emprestimos.buscarDoCliente(id, user.clienteId);
+    return this.emprestimos.previewQuitacao(id);
   }
 
   // -------- Back-office --------
@@ -89,6 +111,22 @@ export class EmprestimosController {
     @CurrentUser('sub') actorId: string,
   ) {
     return this.emprestimos.liberar(id, actorId);
+  }
+
+  @Roles(Role.ADMIN, Role.ANALISTA)
+  @Get(':id/quitacao')
+  previewQuitacao(@Param('id', ParseUUIDPipe) id: string) {
+    return this.emprestimos.previewQuitacao(id);
+  }
+
+  @Roles(Role.ADMIN)
+  @Post(':id/quitar')
+  quitar(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: QuitarEmprestimoDto,
+    @CurrentUser('sub') actorId: string,
+  ) {
+    return this.emprestimos.quitar(id, dto, actorId);
   }
 
   @Roles(Role.ADMIN)

@@ -9,6 +9,9 @@ import {
   EmprestimoStatus,
   LedgerDirecao,
   LedgerTipo,
+  ParcelaStatus,
+  PagamentoForma,
+  PagamentoStatus,
   Prisma,
 } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -42,12 +45,15 @@ export class EmprestimosService {
   ) {}
 
   // -------------------------------------------------------------------------
-  // Simulação (não persiste)
+  // Simulação (não persiste) — pública
   // -------------------------------------------------------------------------
-  simular(dto: SimularEmprestimoDto) {
+  async simular(dto: SimularEmprestimoDto) {
     const dataContratacao = dto.dataContratacao
       ? toUtcDate(dto.dataContratacao)
       : toUtcDate(new Date());
+
+    const limites = await this.parametros.getLimitesRegulatorios();
+    this.validarCondicoesGerais(dto, limites);
 
     const r = calcularEmprestimo({
       valorPrincipal: dto.valorPrincipal,
@@ -57,6 +63,8 @@ export class EmprestimosService {
       diaVencimento: dto.diaVencimento,
       dataContratacao,
       tarifasIniciais: dto.tarifasIniciais,
+      iofDiario: limites.iofDiario,
+      iofAdicional: limites.iofAdicional,
     });
 
     return {
@@ -70,6 +78,7 @@ export class EmprestimosService {
       },
       totalJuros: r.totalJuros,
       totalAPagar: r.totalAPagar,
+      iof: r.iof,
       cetMes: r.cetMes,
       cetAno: r.cetAno,
       cronograma: r.cronograma.map((p) => ({
@@ -82,6 +91,36 @@ export class EmprestimosService {
         saldoDevedorApos: p.saldoDevedorApos,
       })),
     };
+  }
+
+  /** Validações de usura e limites globais de valor/prazo. */
+  private validarCondicoesGerais(
+    dto: { valorPrincipal: Decimal.Value; taxaJurosMes: Decimal.Value; prazoMeses: number },
+    limites: Awaited<ReturnType<ParametrosService['getLimitesRegulatorios']>>,
+  ) {
+    const taxaFrac = percentToRate(dec(dto.taxaJurosMes));
+    if (taxaFrac.gt(limites.taxaJurosMaxMes)) {
+      throw new BadRequestException(
+        `Taxa de juros acima do teto permitido (${limites.taxaJurosMaxMes.mul(100)}% a.m.)`,
+      );
+    }
+    if (taxaFrac.lt(0)) {
+      throw new BadRequestException('Taxa de juros não pode ser negativa');
+    }
+    const valor = dec(dto.valorPrincipal);
+    if (valor.lt(limites.valorMinGlobal) || valor.gt(limites.valorMaxGlobal)) {
+      throw new BadRequestException(
+        `Valor fora dos limites globais (${limites.valorMinGlobal}–${limites.valorMaxGlobal})`,
+      );
+    }
+    if (
+      dto.prazoMeses < limites.prazoMinGlobal ||
+      dto.prazoMeses > limites.prazoMaxGlobal
+    ) {
+      throw new BadRequestException(
+        `Prazo fora dos limites globais (${limites.prazoMinGlobal}–${limites.prazoMaxGlobal} meses)`,
+      );
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -99,6 +138,7 @@ export class EmprestimosService {
     }
 
     const limites = await this.parametros.getLimitesRegulatorios();
+    this.validarCondicoesGerais(dto, limites);
     const multaFrac =
       dto.multaAtrasoPercent !== undefined
         ? percentToRate(dec(dto.multaAtrasoPercent))
@@ -153,6 +193,8 @@ export class EmprestimosService {
       diaVencimento: dto.diaVencimento,
       dataContratacao,
       tarifasIniciais: dto.tarifasIniciais,
+      iofDiario: limites.iofDiario,
+      iofAdicional: limites.iofAdicional,
     });
     const dataFinal = calc.cronograma[calc.cronograma.length - 1].vencimento;
 
@@ -173,6 +215,7 @@ export class EmprestimosService {
           diaVencimento: dto.diaVencimento,
           cetMes: calc.cetMes,
           cetAno: calc.cetAno,
+          iof: calc.iof,
           totalJuros: calc.totalJuros,
           totalAPagar: calc.totalAPagar,
           dataContratacao,
@@ -228,6 +271,8 @@ export class EmprestimosService {
           aprovadoPor: actorId,
           aprovadoEm: new Date(),
           dataLiberacao: new Date(),
+          // Inicializa o saldo de principal em aberto com o valor desembolsado.
+          saldoPrincipal: money(emp.valorPrincipal),
         },
       });
       // O razão representa o SALDO DEVEDOR TOTAL em aberto (principal + juros
@@ -306,6 +351,195 @@ export class EmprestimosService {
   }
 
   // -------------------------------------------------------------------------
+  // Quitação antecipada (com abatimento de juros futuros)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Calcula o valor de quitação antecipada na data de referência:
+   *  - principal em aberto (parcelas não pagas)
+   *  - juros remuneratórios PRO-RATA do período corrente (não os juros futuros)
+   *  - encargos de mora já incorridos (multa + juros de mora em aberto)
+   * O abatimento corresponde aos juros contratuais futuros ainda não incorridos.
+   */
+  async previewQuitacao(id: string, dataRef?: Date) {
+    const emp = await this.prisma.emprestimo.findUnique({
+      where: { id },
+      include: { parcelas: { orderBy: { vencimento: 'asc' } } },
+    });
+    if (!emp) throw new NotFoundException('Empréstimo não encontrado');
+    if (
+      emp.status !== EmprestimoStatus.ATIVO &&
+      emp.status !== EmprestimoStatus.EM_ATRASO &&
+      emp.status !== EmprestimoStatus.INADIMPLENTE
+    ) {
+      throw new BadRequestException(
+        `Quitação disponível apenas para contratos em curso (status: ${emp.status})`,
+      );
+    }
+
+    const hoje = toUtcDate(dataRef ?? new Date());
+
+    const emAberto = emp.parcelas.filter(
+      (p) => p.status !== ParcelaStatus.PAGA && p.status !== ParcelaStatus.CANCELADA,
+    );
+
+    const principalEmAberto = sumMoney(
+      emAberto.map((p) => nonNegative(dec(p.valorPrincipal))),
+    );
+
+    // Encargos de mora já incorridos (multa + juros de mora calculados no job).
+    const encargosMora = sumMoney(
+      emAberto.map((p) =>
+        nonNegative(
+          dec(p.multa).plus(dec(p.jurosMora)).minus(
+            // parte do valorPago que já cobriu encargos é desconsiderada aqui
+            dec(0),
+          ),
+        ),
+      ),
+    );
+
+    // Início do período corrente: último vencimento anterior a hoje, senão
+    // a data de liberação/contratação.
+    const baseInicio = emp.dataLiberacao ?? emp.dataContratacao;
+    const ultimoVencPassado = emp.parcelas
+      .map((p) => toUtcDate(p.vencimento))
+      .filter((v) => v < hoje)
+      .sort((a, b) => b.getTime() - a.getTime())[0];
+    const periodoInicio = ultimoVencPassado ?? toUtcDate(baseInicio);
+    const diasPeriodo = Math.min(31, Math.max(0, diffDays(hoje, periodoInicio)));
+
+    const taxaMes = dec(emp.taxaJurosMes); // fração
+    const jurosCorridos = money(
+      principalEmAberto.mul(taxaMes).mul(diasPeriodo).div(30),
+    );
+
+    // Créditos já pagos em parcelas parciais reduzem o saldo.
+    const jaPago = sumMoney(emAberto.map((p) => dec(p.valorPago)));
+
+    const valorQuitacao = nonNegative(
+      principalEmAberto.plus(jurosCorridos).plus(encargosMora).minus(jaPago),
+    );
+
+    const saldoContabil = await this.ledger.getSaldo(id);
+    const abatimentoJurosFuturos = nonNegative(saldoContabil.minus(valorQuitacao));
+
+    return {
+      dataReferencia: hoje,
+      principalEmAberto: money(principalEmAberto),
+      jurosCorridos,
+      encargosMora: money(encargosMora),
+      creditosAbatidos: money(jaPago),
+      valorQuitacao: money(valorQuitacao),
+      saldoContabilAtual: money(saldoContabil),
+      abatimentoJurosFuturos: money(abatimentoJurosFuturos),
+      diasPeriodo,
+    };
+  }
+
+  async quitar(
+    id: string,
+    opts: { forma?: PagamentoForma; observacao?: string; dataRef?: Date },
+    actorId: string,
+  ) {
+    const preview = await this.previewQuitacao(id, opts.dataRef);
+    const hoje = toUtcDate(opts.dataRef ?? new Date());
+
+    await this.prisma.$transaction(async (tx) => {
+      const emp = await tx.emprestimo.findUnique({
+        where: { id },
+        include: { parcelas: true },
+      });
+      if (!emp) throw new NotFoundException('Empréstimo não encontrado');
+
+      // 1) Abate os juros contratuais futuros ainda não incorridos (crédito).
+      if (dec(preview.abatimentoJurosFuturos).gt(0)) {
+        await this.ledger.post(tx, {
+          emprestimoId: id,
+          tipo: LedgerTipo.AJUSTE,
+          direcao: LedgerDirecao.CREDITO,
+          valor: preview.abatimentoJurosFuturos,
+          competencia: hoje,
+          descricao: 'Abatimento de juros futuros por quitação antecipada',
+          idempotencyKey: `quitacao_abatimento:${id}`,
+          criadoPor: actorId,
+        });
+      }
+
+      // 2) Registra o pagamento de quitação (crédito) e zera o saldo.
+      const pagamento = await tx.pagamento.create({
+        data: {
+          emprestimoId: id,
+          valor: dec(preview.valorQuitacao),
+          forma: opts.forma ?? PagamentoForma.PIX,
+          status: PagamentoStatus.CONFIRMADO,
+          dataPagamento: hoje,
+          observacao: opts.observacao ?? 'Quitação antecipada',
+          registradoPor: actorId,
+        },
+      });
+
+      await this.ledger.post(tx, {
+        emprestimoId: id,
+        tipo: LedgerTipo.PAGAMENTO,
+        direcao: LedgerDirecao.CREDITO,
+        valor: dec(preview.valorQuitacao),
+        competencia: hoje,
+        descricao: `Quitação antecipada (pagamento ${pagamento.id})`,
+        idempotencyKey: `quitacao_pagamento:${id}`,
+        criadoPor: actorId,
+      });
+
+      // 3) Baixa todas as parcelas em aberto.
+      await tx.parcela.updateMany({
+        where: {
+          emprestimoId: id,
+          status: { notIn: [ParcelaStatus.PAGA, ParcelaStatus.CANCELADA] },
+        },
+        data: { status: ParcelaStatus.PAGA, dataPagamento: hoje },
+      });
+
+      await tx.emprestimo.update({
+        where: { id },
+        data: {
+          status: EmprestimoStatus.LIQUIDADO,
+          dataLiquidacao: hoje,
+          saldoPrincipal: dec(0),
+        },
+      });
+
+      await this.ledger.recalcularSaldoPrincipal(tx, id);
+
+      await this.audit.log(
+        {
+          actorId,
+          acao: 'EMPRESTIMO_QUITADO_ANTECIPADAMENTE',
+          entidade: 'Emprestimo',
+          entidadeId: id,
+          depois: {
+            valorQuitacao: preview.valorQuitacao,
+            abatimentoJurosFuturos: preview.abatimentoJurosFuturos,
+          },
+        },
+        tx,
+      );
+
+      await this.notificacoes.criar(
+        {
+          clienteId: emp.clienteId,
+          tipo: 'EMPRESTIMO_LIQUIDADO',
+          titulo: 'Empréstimo quitado',
+          mensagem: `Seu empréstimo ${emp.numeroContrato} foi quitado. Obrigado!`,
+          idempotencyKey: `emprestimo_quitado:${id}`,
+        },
+        tx,
+      );
+    });
+
+    return { ...(await this.buscar(id)), quitacao: preview };
+  }
+
+  // -------------------------------------------------------------------------
   // Consultas
   // -------------------------------------------------------------------------
   async listar(params: {
@@ -348,7 +582,7 @@ export class EmprestimosService {
       },
     });
     if (!emp) throw new NotFoundException('Empréstimo não encontrado');
-    const resumo = await this.montarResumo(id, emp.dataFinal, emp.parcelas);
+    const resumo = this.montarResumo(emp.saldoDevedor, emp.dataFinal, emp.parcelas);
     return { ...emp, resumo };
   }
 
@@ -358,12 +592,10 @@ export class EmprestimosService {
       orderBy: { createdAt: 'desc' },
       include: { parcelas: { orderBy: { numero: 'asc' } } },
     });
-    return Promise.all(
-      emprestimos.map(async (e) => ({
-        ...e,
-        resumo: await this.montarResumo(e.id, e.dataFinal, e.parcelas),
-      })),
-    );
+    return emprestimos.map((e) => ({
+      ...e,
+      resumo: this.montarResumo(e.saldoDevedor, e.dataFinal, e.parcelas),
+    }));
   }
 
   async buscarDoCliente(id: string, clienteId: string) {
@@ -377,8 +609,8 @@ export class EmprestimosService {
   // -------------------------------------------------------------------------
   // Resumo (tela do cliente)
   // -------------------------------------------------------------------------
-  private async montarResumo(
-    emprestimoId: string,
+  private montarResumo(
+    saldoDevedorCache: Decimal | any,
     dataFinal: Date,
     parcelas: {
       vencimento: Date;
@@ -390,7 +622,7 @@ export class EmprestimosService {
       status: string;
     }[],
   ) {
-    const saldoDevedor = await this.ledger.getSaldo(emprestimoId);
+    const saldoDevedor = dec(saldoDevedorCache);
     const hoje = toUtcDate(new Date());
 
     const emAberto = parcelas.filter(

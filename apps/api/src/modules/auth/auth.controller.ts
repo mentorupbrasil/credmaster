@@ -6,17 +6,29 @@ import {
   HttpStatus,
   Post,
   Req,
+  Res,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { Request } from 'express';
+import { Request, Response } from 'express';
 import { Public } from '../../common/decorators/public.decorator';
 import {
   AuthUser,
   CurrentUser,
 } from '../../common/decorators/current-user.decorator';
 import { AuthService } from './auth.service';
-import { LoginDto, LogoutDto, RefreshDto, RegisterDto } from './dto/auth.dto';
+import {
+  LoginDto,
+  LogoutDto,
+  RefreshDto,
+  RegisterDto,
+  RequestPasswordResetDto,
+  ResetPasswordDto,
+  VerifyEmailDto,
+} from './dto/auth.dto';
+
+const REFRESH_COOKIE = 'refresh_token';
 
 function meta(req: Request) {
   return {
@@ -28,35 +40,118 @@ function meta(req: Request) {
 @ApiTags('auth')
 @Controller({ path: 'auth', version: '1' })
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly config: ConfigService,
+  ) {}
+
+  private setRefreshCookie(res: Response, refreshToken: string) {
+    const prod = this.config.get<string>('nodeEnv') === 'production';
+    const maxAge = this.config.get<number>('jwt.refreshTtl', 2592000) * 1000;
+    res.cookie(REFRESH_COOKIE, refreshToken, {
+      httpOnly: true,
+      secure: prod,
+      sameSite: prod ? 'none' : 'lax',
+      path: '/',
+      maxAge,
+    });
+  }
+
+  private clearRefreshCookie(res: Response) {
+    const prod = this.config.get<string>('nodeEnv') === 'production';
+    res.clearCookie(REFRESH_COOKIE, {
+      httpOnly: true,
+      secure: prod,
+      sameSite: prod ? 'none' : 'lax',
+      path: '/',
+    });
+  }
+
+  /** Remove o refresh token do corpo da resposta (fica apenas no cookie). */
+  private sanitize(payload: Record<string, unknown>) {
+    const clone: Record<string, unknown> = { ...payload };
+    delete clone.refreshToken;
+    return clone;
+  }
 
   @Public()
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('register')
-  register(@Body() dto: RegisterDto, @Req() req: Request) {
-    return this.authService.register(dto, meta(req));
+  async register(
+    @Body() dto: RegisterDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.register(dto, meta(req));
+    this.setRefreshCookie(res, result.refreshToken);
+    return this.sanitize(result);
   }
 
   @Public()
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   @Post('login')
-  login(@Body() dto: LoginDto, @Req() req: Request) {
-    return this.authService.login(dto, meta(req));
+  async login(
+    @Body() dto: LoginDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.login(dto, meta(req));
+    this.setRefreshCookie(res, result.refreshToken);
+    return this.sanitize(result);
   }
 
   @Public()
   @HttpCode(HttpStatus.OK)
   @Post('refresh')
-  refresh(@Body() dto: RefreshDto, @Req() req: Request) {
-    return this.authService.refresh(dto.refreshToken, meta(req));
+  async refresh(
+    @Body() dto: RefreshDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const token = req.cookies?.[REFRESH_COOKIE] ?? dto.refreshToken;
+    const result = await this.authService.refresh(token, meta(req));
+    this.setRefreshCookie(res, result.refreshToken);
+    return this.sanitize(result);
   }
 
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @Post('logout')
-  logout(@CurrentUser() user: AuthUser, @Body() dto: LogoutDto) {
-    return this.authService.logout(user.sub, dto.refreshToken);
+  async logout(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: LogoutDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const token = req.cookies?.[REFRESH_COOKIE] ?? dto.refreshToken;
+    const result = await this.authService.logout(user.sub, token);
+    this.clearRefreshCookie(res);
+    return result;
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @HttpCode(HttpStatus.OK)
+  @Post('verificar-email')
+  verificarEmail(@Body() dto: VerifyEmailDto) {
+    return this.authService.verificarEmail(dto.token);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @HttpCode(HttpStatus.OK)
+  @Post('esqueci-senha')
+  esqueciSenha(@Body() dto: RequestPasswordResetDto) {
+    return this.authService.solicitarRedefinicaoSenha(dto.email);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @HttpCode(HttpStatus.OK)
+  @Post('redefinir-senha')
+  redefinirSenha(@Body() dto: ResetPasswordDto, @Req() req: Request) {
+    return this.authService.redefinirSenha(dto.token, dto.novaSenha, meta(req));
   }
 
   @ApiBearerAuth()

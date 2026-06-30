@@ -1,5 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { SchedulerRegistry } from '@nestjs/schedule';
+import { CronJob } from 'cron';
 import {
   EmprestimoStatus,
   JobStatus,
@@ -12,7 +14,7 @@ import { LedgerService } from '../ledger/ledger.service';
 import { NotificacoesService } from '../notificacoes/notificacoes.service';
 import { AuditService } from '../audit/audit.service';
 import { calcularEncargos } from '../../domain/finance/mora';
-import { dec, money, nonNegative, sumMoney } from '../../domain/finance/money';
+import { dec, money, nonNegative, sumMoney, Decimal } from '../../domain/finance/money';
 import { addDays, isoDate, toUtcDate } from '../../domain/finance/dates';
 
 const JOB_NOME = 'cobranca-diaria';
@@ -29,7 +31,7 @@ export interface ResultadoCobranca {
 }
 
 @Injectable()
-export class CobrancaService {
+export class CobrancaService implements OnModuleInit {
   private readonly logger = new Logger(CobrancaService.name);
 
   constructor(
@@ -37,12 +39,35 @@ export class CobrancaService {
     private readonly ledger: LedgerService,
     private readonly notificacoes: NotificacoesService,
     private readonly audit: AuditService,
+    private readonly config: ConfigService,
+    private readonly scheduler: SchedulerRegistry,
   ) {}
 
-  @Cron(process.env.COBRANCA_CRON ?? '5 0 * * *', {
-    name: JOB_NOME,
-    timeZone: process.env.TIMEZONE ?? 'America/Sao_Paulo',
-  })
+  /**
+   * Registra o cron dinamicamente lendo a expressão/fuso do ConfigService.
+   * (Não usamos o decorator @Cron porque ele é avaliado antes do .env carregar.)
+   */
+  onModuleInit() {
+    const cronTime = this.config.get<string>('cobranca.cron', '5 0 * * *');
+    const timeZone = this.config.get<string>('timezone', 'America/Sao_Paulo');
+
+    const job = new CronJob(
+      cronTime,
+      () => {
+        this.rotinaAgendada().catch((e) =>
+          this.logger.error(`Erro na rotina agendada: ${e?.message ?? e}`),
+        );
+      },
+      null,
+      false,
+      timeZone,
+    );
+
+    this.scheduler.addCronJob(JOB_NOME, job as never);
+    job.start();
+    this.logger.log(`Cron de cobrança agendado: "${cronTime}" (${timeZone})`);
+  }
+
   async rotinaAgendada() {
     this.logger.log('Iniciando rotina diária de cobrança');
     await this.executar();
@@ -124,15 +149,20 @@ export class CobrancaService {
           jurosMoraMesPercent: parcela.emprestimo.jurosMoraMesPercent,
         });
 
-        const deltaMulta = money(alvo.multa.minus(dec(parcela.multa)));
-        const deltaMora = money(alvo.jurosMora.minus(dec(parcela.jurosMora)));
+        // Encargos são NÃO-DECRESCENTES: como só lançamos deltas positivos no
+        // razão, o valor armazenado na parcela nunca pode regredir (caso
+        // contrário parcela e razão divergiriam). Mantemos o máximo acumulado.
+        const multaFinal = Decimal.max(dec(parcela.multa), alvo.multa);
+        const moraFinal = Decimal.max(dec(parcela.jurosMora), alvo.jurosMora);
+        const deltaMulta = money(multaFinal.minus(dec(parcela.multa)));
+        const deltaMora = money(moraFinal.minus(dec(parcela.jurosMora)));
 
         await this.prisma.$transaction(async (tx) => {
           await tx.parcela.update({
             where: { id: parcela.id },
             data: {
-              multa: alvo.multa,
-              jurosMora: alvo.jurosMora,
+              multa: multaFinal,
+              jurosMora: moraFinal,
               diasAtraso: alvo.diasAtraso,
               status: ParcelaStatus.VENCIDA,
               moraCalculadaAte: ref,

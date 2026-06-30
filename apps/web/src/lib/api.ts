@@ -4,7 +4,6 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3333/api';
 const BASE = `${API_URL}/v1`;
 
 const ACCESS_KEY = 'cm_access';
-const REFRESH_KEY = 'cm_refresh';
 const USER_KEY = 'cm_user';
 
 export interface SessionUser {
@@ -15,26 +14,26 @@ export interface SessionUser {
   clienteId: string | null;
 }
 
+/**
+ * O refresh token é mantido em cookie httpOnly (definido pela API) e NUNCA
+ * é exposto ao JavaScript. Aqui guardamos apenas o access token (curta
+ * duração) e os dados públicos do usuário.
+ */
 export const tokenStore = {
   get access() {
     return typeof window !== 'undefined' ? localStorage.getItem(ACCESS_KEY) : null;
-  },
-  get refresh() {
-    return typeof window !== 'undefined' ? localStorage.getItem(REFRESH_KEY) : null;
   },
   get user(): SessionUser | null {
     if (typeof window === 'undefined') return null;
     const raw = localStorage.getItem(USER_KEY);
     return raw ? (JSON.parse(raw) as SessionUser) : null;
   },
-  save(access: string, refresh: string, user: SessionUser) {
+  save(access: string, user: SessionUser) {
     localStorage.setItem(ACCESS_KEY, access);
-    localStorage.setItem(REFRESH_KEY, refresh);
     localStorage.setItem(USER_KEY, JSON.stringify(user));
   },
   clear() {
     localStorage.removeItem(ACCESS_KEY);
-    localStorage.removeItem(REFRESH_KEY);
     localStorage.removeItem(USER_KEY);
   },
 };
@@ -60,9 +59,13 @@ async function request<T>(
   const access = tokenStore.access;
   if (access) headers.Authorization = `Bearer ${access}`;
 
-  const res = await fetch(`${BASE}${path}`, { ...options, headers });
+  const res = await fetch(`${BASE}${path}`, {
+    ...options,
+    headers,
+    credentials: 'include',
+  });
 
-  if (res.status === 401 && retry && tokenStore.refresh) {
+  if (res.status === 401 && retry) {
     const refreshed = await tryRefresh();
     if (refreshed) return request<T>(path, options, false);
   }
@@ -81,24 +84,34 @@ async function request<T>(
   return body as T;
 }
 
+let refreshing: Promise<boolean> | null = null;
+
 async function tryRefresh(): Promise<boolean> {
-  try {
-    const res = await fetch(`${BASE}/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken: tokenStore.refresh }),
-    });
-    if (!res.ok) {
+  // Coalesce múltiplos refreshes concorrentes em uma só chamada.
+  if (refreshing) return refreshing;
+  refreshing = (async () => {
+    try {
+      const res = await fetch(`${BASE}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        tokenStore.clear();
+        return false;
+      }
+      const data = await res.json();
+      tokenStore.save(data.accessToken, data.user);
+      return true;
+    } catch {
       tokenStore.clear();
       return false;
+    } finally {
+      refreshing = null;
     }
-    const data = await res.json();
-    tokenStore.save(data.accessToken, data.refreshToken, data.user);
-    return true;
-  } catch {
-    tokenStore.clear();
-    return false;
-  }
+  })();
+  return refreshing;
 }
 
 export const api = {
@@ -110,15 +123,35 @@ export const api = {
   patch: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: 'PATCH', body: JSON.stringify(body ?? {}) }),
 
+  /** Simulação pública (não requer autenticação). */
+  async simularPublico(payload: {
+    valorPrincipal: number;
+    taxaJurosMes: number;
+    tipoAmortizacao: string;
+    prazoMeses: number;
+    diaVencimento: number;
+  }) {
+    const res = await fetch(`${BASE}/emprestimos/simular-publico`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok)
+      throw new ApiError(res.status, data?.message ?? 'Falha na simulação');
+    return data;
+  },
+
   async login(email: string, senha: string) {
     const res = await fetch(`${BASE}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, senha }),
+      credentials: 'include',
     });
     const data = await res.json();
     if (!res.ok) throw new ApiError(res.status, data?.message ?? 'Falha no login');
-    tokenStore.save(data.accessToken, data.refreshToken, data.user);
+    tokenStore.save(data.accessToken, data.user);
     return data.user as SessionUser;
   },
 
@@ -133,18 +166,30 @@ export const api = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
+      credentials: 'include',
     });
     const data = await res.json();
     if (!res.ok) throw new ApiError(res.status, data?.message ?? 'Falha no cadastro');
-    tokenStore.save(data.accessToken, data.refreshToken, data.user);
+    tokenStore.save(data.accessToken, data.user);
     return data.user as SessionUser;
   },
 
+  async esqueciSenha(email: string) {
+    const res = await fetch(`${BASE}/auth/esqueci-senha`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok)
+      throw new ApiError(res.status, data?.message ?? 'Falha na solicitação');
+    return data;
+  },
+
   logout() {
-    const refreshToken = tokenStore.refresh;
     void request('/auth/logout', {
       method: 'POST',
-      body: JSON.stringify({ refreshToken }),
+      body: JSON.stringify({}),
     }).catch(() => undefined);
     tokenStore.clear();
   },

@@ -1,28 +1,33 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { PrismaService } from '../../common/prisma/prisma.service';
+import { HealthCheck, HealthCheckService } from '@nestjs/terminus';
 import { Public } from '../../common/decorators/public.decorator';
+import { PrismaHealthIndicator } from './prisma.health';
 
 @ApiTags('health')
 @Controller({ path: 'health', version: '1' })
 export class HealthController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly health: HealthCheckService,
+    private readonly prismaIndicator: PrismaHealthIndicator,
+  ) {}
 
+  /** Liveness: o processo está de pé (não depende de dependências externas). */
   @Public()
   @Get()
-  async check() {
-    let db = 'down';
-    try {
-      await this.prisma.$queryRaw`SELECT 1`;
-      db = 'up';
-    } catch {
-      db = 'down';
-    }
+  liveness() {
     return {
-      status: db === 'up' ? 'ok' : 'degraded',
-      db,
+      status: 'ok',
       uptime: process.uptime(),
       timestamp: new Date().toISOString(),
     };
+  }
+
+  /** Readiness: pronto para receber tráfego (checa o banco). */
+  @Public()
+  @Get('ready')
+  @HealthCheck()
+  readiness() {
+    return this.health.check([() => this.prismaIndicator.pingCheck('database')]);
   }
 }

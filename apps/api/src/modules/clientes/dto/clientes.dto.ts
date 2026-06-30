@@ -12,6 +12,7 @@ import {
   IsEnum,
 } from 'class-validator';
 import { ClienteStatus } from '@prisma/client';
+import { IsCPF } from '../../../common/validators/is-cpf.validator';
 
 export class CreateClienteDto {
   @ApiProperty()
@@ -21,7 +22,7 @@ export class CreateClienteDto {
 
   @ApiProperty({ description: 'CPF (somente dígitos)' })
   @IsString()
-  @Matches(/^\d{11}$/, { message: 'CPF deve conter 11 dígitos' })
+  @IsCPF()
   cpf!: string;
 
   @ApiProperty()

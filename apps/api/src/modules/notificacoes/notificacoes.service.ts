@@ -6,6 +6,7 @@ import {
   Prisma,
 } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { NotificationDispatcher } from '../../common/messaging/notification-dispatcher.service';
 
 export interface CriarNotificacaoInput {
   clienteId: string;
@@ -21,7 +22,10 @@ export interface CriarNotificacaoInput {
 export class NotificacoesService {
   private readonly logger = new Logger(NotificacoesService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly dispatcher: NotificationDispatcher,
+  ) {}
 
   /**
    * Cria (e "envia") uma notificação. Idempotente quando `idempotencyKey`
@@ -41,11 +45,13 @@ export class NotificacoesService {
       if (existing) return existing;
     }
 
+    const canal = input.canal ?? NotificacaoCanal.IN_APP;
+
     try {
-      return await client.notificacao.create({
+      const notificacao = await client.notificacao.create({
         data: {
           clienteId: input.clienteId,
-          canal: input.canal ?? NotificacaoCanal.IN_APP,
+          canal,
           tipo: input.tipo,
           titulo: input.titulo,
           mensagem: input.mensagem,
@@ -55,6 +61,14 @@ export class NotificacoesService {
           enviadaEm: new Date(),
         },
       });
+
+      // Canais externos são despachados via provider (best-effort, não
+      // derruba a operação principal caso o provedor falhe).
+      if (canal !== NotificacaoCanal.IN_APP) {
+        void this.despacharExterno(canal, notificacao.id, input);
+      }
+
+      return notificacao;
     } catch (e) {
       // Conflito de idempotência sob concorrência: busca o existente.
       if (
@@ -67,6 +81,48 @@ export class NotificacoesService {
         });
       }
       throw e;
+    }
+  }
+
+  private async despacharExterno(
+    canal: NotificacaoCanal,
+    notificacaoId: string,
+    input: CriarNotificacaoInput,
+  ) {
+    try {
+      const cliente = await this.prisma.cliente.findUnique({
+        where: { id: input.clienteId },
+        select: { email: true, telefone: true },
+      });
+      if (!cliente) return;
+      const destino =
+        canal === NotificacaoCanal.SMS || canal === NotificacaoCanal.WHATSAPP
+          ? cliente.telefone
+          : cliente.email;
+
+      const result = await this.dispatcher.dispatch({
+        canal,
+        destino,
+        titulo: input.titulo,
+        mensagem: input.mensagem,
+      });
+
+      if (!result.entregue) {
+        await this.prisma.notificacao.update({
+          where: { id: notificacaoId },
+          data: { status: NotificacaoStatus.FALHA, erro: result.detalhe },
+        });
+      }
+    } catch (e) {
+      this.logger.warn(
+        `Falha ao despachar notificação ${notificacaoId}: ${(e as Error).message}`,
+      );
+      await this.prisma.notificacao
+        .update({
+          where: { id: notificacaoId },
+          data: { status: NotificacaoStatus.FALHA, erro: (e as Error).message },
+        })
+        .catch(() => undefined);
     }
   }
 

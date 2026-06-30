@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsEmail,
   IsNotEmpty,
@@ -7,6 +7,7 @@ import {
   Matches,
   MinLength,
 } from 'class-validator';
+import { IsCPF } from '../../../common/validators/is-cpf.validator';
 
 export class RegisterDto {
   @ApiProperty({ example: 'maria@exemplo.com' })
@@ -28,7 +29,7 @@ export class RegisterDto {
 
   @ApiProperty({ example: '12345678909', description: 'CPF (somente dígitos)' })
   @IsString()
-  @Matches(/^\d{11}$/, { message: 'CPF deve conter 11 dígitos' })
+  @IsCPF()
   cpf!: string;
 
   @ApiProperty({ example: '11999998888' })
@@ -49,10 +50,41 @@ export class LoginDto {
 }
 
 export class RefreshDto {
-  @ApiProperty()
+  @ApiPropertyOptional({
+    description:
+      'Opcional. Em navegadores o refresh token vem por cookie httpOnly.',
+  })
+  @IsString()
+  @IsOptional()
+  refreshToken?: string;
+}
+
+export class RequestPasswordResetDto {
+  @ApiProperty({ example: 'maria@exemplo.com' })
+  @IsEmail()
+  email!: string;
+}
+
+export class ResetPasswordDto {
+  @ApiProperty({ description: 'Token recebido por e-mail' })
   @IsString()
   @IsNotEmpty()
-  refreshToken!: string;
+  token!: string;
+
+  @ApiProperty({ example: 'NovaSenhaForte@123' })
+  @IsString()
+  @MinLength(10)
+  @Matches(/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, {
+    message: 'A senha deve conter maiúsculas, minúsculas e números',
+  })
+  novaSenha!: string;
+}
+
+export class VerifyEmailDto {
+  @ApiProperty({ description: 'Token de verificação recebido por e-mail' })
+  @IsString()
+  @IsNotEmpty()
+  token!: string;
 }
 
 export class LogoutDto {

@@ -17,6 +17,8 @@ jobs:
           cache: npm
       - name: Install
         run: npm ci
+      - name: Prisma validate
+        run: npm run api:prisma:validate
       - name: Prisma generate
         run: npm run api:generate
       - name: Lint
@@ -37,6 +39,8 @@ jobs:
           cache: npm
       - name: Install
         run: npm ci
+      - name: Typecheck
+        run: npm run web:typecheck
       - name: Build
         run: npm run web:build
         env:

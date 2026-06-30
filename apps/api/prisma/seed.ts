@@ -29,6 +29,51 @@ async function main() {
     update: {},
   });
 
+  const paramsExtras: { chave: string; valor: string; descricao: string }[] = [
+    {
+      chave: 'regulatorio.taxa_juros_max_mes_percent',
+      valor: '12',
+      descricao: 'Teto de juros remuneratórios ao mês (%) - anti-usura',
+    },
+    {
+      chave: 'regulatorio.valor_min_global',
+      valor: '100',
+      descricao: 'Valor mínimo global de contrato (R$)',
+    },
+    {
+      chave: 'regulatorio.valor_max_global',
+      valor: '1000000',
+      descricao: 'Valor máximo global de contrato (R$)',
+    },
+    {
+      chave: 'regulatorio.prazo_min_global',
+      valor: '1',
+      descricao: 'Prazo mínimo global (meses)',
+    },
+    {
+      chave: 'regulatorio.prazo_max_global',
+      valor: '120',
+      descricao: 'Prazo máximo global (meses)',
+    },
+    {
+      chave: 'regulatorio.iof_diario_percent',
+      valor: '0.0082',
+      descricao: 'Alíquota de IOF diário (%) - pessoa física',
+    },
+    {
+      chave: 'regulatorio.iof_adicional_percent',
+      valor: '0.38',
+      descricao: 'Alíquota de IOF adicional fixa (%)',
+    },
+  ];
+  for (const p of paramsExtras) {
+    await prisma.parametroSistema.upsert({
+      where: { chave: p.chave },
+      create: p,
+      update: {},
+    });
+  }
+
   // 2) Usuário administrador
   const passwordHash = await argon2.hash(ADMIN_SENHA, { type: argon2.argon2id });
   const admin = await prisma.user.upsert({
@@ -39,8 +84,9 @@ async function main() {
       passwordHash,
       role: Role.ADMIN,
       status: UserStatus.ATIVO,
+      emailVerificado: true,
     },
-    update: { role: Role.ADMIN, status: UserStatus.ATIVO },
+    update: { role: Role.ADMIN, status: UserStatus.ATIVO, emailVerificado: true },
   });
   console.log(`Seed: admin -> ${admin.email} / senha: ${ADMIN_SENHA}`);
 

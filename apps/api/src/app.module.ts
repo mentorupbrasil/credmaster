@@ -8,6 +8,8 @@ import { LoggerModule } from 'nestjs-pino';
 import configuration from './config/configuration';
 import { validateEnv } from './config/env.validation';
 import { PrismaModule } from './common/prisma/prisma.module';
+import { MessagingModule } from './common/messaging/messaging.module';
+import { IntegrationsModule } from './common/integrations/integrations.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 
@@ -54,6 +56,8 @@ import { HealthModule } from './modules/health/health.module';
     }),
     ScheduleModule.forRoot(),
     PrismaModule,
+    MessagingModule,
+    IntegrationsModule,
     AuditModule,
     ParametrosModule,
     AuthModule,

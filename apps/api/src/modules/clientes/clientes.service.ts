@@ -3,7 +3,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ClienteStatus, Prisma, UserStatus } from '@prisma/client';
+import {
+  ClienteStatus,
+  EmprestimoStatus,
+  Prisma,
+  UserStatus,
+} from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { NotificacoesService } from '../notificacoes/notificacoes.service';
@@ -239,5 +244,134 @@ export class ClientesService {
 
   async meuPerfil(clienteId: string) {
     return this.buscar(clienteId);
+  }
+
+  // -------------------------------------------------------------------------
+  // LGPD: portabilidade/acesso e direito ao esquecimento (anonimização)
+  // -------------------------------------------------------------------------
+
+  /** Exporta todos os dados pessoais do titular (LGPD art. 18, II e V). */
+  async exportarDados(clienteId: string, actorId: string) {
+    const cliente = await this.prisma.cliente.findUnique({
+      where: { id: clienteId },
+      include: {
+        enderecos: true,
+        documentos: true,
+        consentimentos: true,
+        emprestimos: {
+          include: { parcelas: true, pagamentos: true },
+        },
+        notificacoes: true,
+      },
+    });
+    if (!cliente) throw new NotFoundException('Cliente não encontrado');
+
+    await this.audit.log({
+      actorId,
+      acao: 'LGPD_DADOS_ACESSADOS',
+      entidade: 'Cliente',
+      entidadeId: clienteId,
+    });
+
+    return {
+      titular: {
+        id: cliente.id,
+        nome: cliente.nome,
+        cpf: cliente.cpf,
+        rg: cliente.rg,
+        email: cliente.email,
+        telefone: cliente.telefone,
+        dataNascimento: cliente.dataNascimento,
+        rendaMensal: cliente.rendaMensal,
+        status: cliente.status,
+      },
+      enderecos: cliente.enderecos,
+      documentos: cliente.documentos,
+      consentimentos: cliente.consentimentos,
+      emprestimos: cliente.emprestimos,
+      notificacoes: cliente.notificacoes,
+      exportadoEm: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Anonimiza (direito ao esquecimento) preservando registros financeiros
+   * exigidos por lei, mas removendo dados identificáveis. Bloqueado quando há
+   * contratos em curso.
+   */
+  async anonimizar(clienteId: string, actorId: string) {
+    const cliente = await this.prisma.cliente.findUnique({
+      where: { id: clienteId },
+      include: { emprestimos: { select: { status: true } } },
+    });
+    if (!cliente) throw new NotFoundException('Cliente não encontrado');
+    if (cliente.anonimizadoEm) {
+      throw new BadRequestException('Cliente já anonimizado');
+    }
+
+    const temContratoEmCurso = cliente.emprestimos.some(
+      (e) =>
+        e.status !== EmprestimoStatus.LIQUIDADO &&
+        e.status !== EmprestimoStatus.CANCELADO,
+    );
+    if (temContratoEmCurso) {
+      throw new BadRequestException(
+        'Não é possível anonimizar: há contratos em curso. Quite ou cancele antes.',
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const anonCpf = `ANON-${clienteId}`;
+      const anonEmail = `anon-${clienteId}@anonimizado.local`;
+
+      // Remove dados de contato/documentos (PII).
+      await tx.endereco.deleteMany({ where: { clienteId } });
+      await tx.documentoCliente.deleteMany({ where: { clienteId } });
+
+      const c = await tx.cliente.update({
+        where: { id: clienteId },
+        data: {
+          nome: 'TITULAR ANONIMIZADO',
+          cpf: anonCpf,
+          rg: null,
+          telefone: 'REMOVIDO',
+          email: anonEmail,
+          rendaMensal: null,
+          dataNascimento: null,
+          status: ClienteStatus.INATIVO,
+          anonimizadoEm: new Date(),
+          deletedAt: new Date(),
+        },
+      });
+
+      // Desativa o acesso (usuário) vinculado e revoga sessões.
+      const users = await tx.user.findMany({ where: { clienteId } });
+      for (const u of users) {
+        await tx.user.update({
+          where: { id: u.id },
+          data: {
+            status: UserStatus.INATIVO,
+            email: `anon-${u.id}@anonimizado.local`,
+            nome: 'TITULAR ANONIMIZADO',
+            deletedAt: new Date(),
+          },
+        });
+        await tx.refreshToken.updateMany({
+          where: { userId: u.id, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+      }
+
+      await this.audit.log(
+        {
+          actorId,
+          acao: 'LGPD_CLIENTE_ANONIMIZADO',
+          entidade: 'Cliente',
+          entidadeId: clienteId,
+        },
+        tx,
+      );
+      return { sucesso: true, anonimizadoEm: c.anonimizadoEm };
+    });
   }
 }

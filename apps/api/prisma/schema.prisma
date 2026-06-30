@@ -155,17 +155,23 @@ enum JobStatus {
   FALHA
 }
 
+enum VerificationTipo {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
 // ----------------------------------------------------------------------------
 // Autenticação & Identidade
 // ----------------------------------------------------------------------------
 
 model User {
   id           String     @id @default(uuid()) @db.Uuid
-  email        String     @unique
-  passwordHash String
-  nome         String
-  role         Role       @default(CLIENTE)
-  status       UserStatus @default(ATIVO)
+  email          String     @unique
+  passwordHash   String
+  nome           String
+  role           Role       @default(CLIENTE)
+  status         UserStatus @default(ATIVO)
+  emailVerificado Boolean   @default(false)
 
   // Vínculo opcional com um Cliente (quando role = CLIENTE)
   cliente   Cliente? @relation(fields: [clienteId], references: [id])
@@ -176,8 +182,9 @@ model User {
   tentativasFalhas Int       @default(0)
   bloqueadoAte     DateTime?
 
-  refreshTokens RefreshToken[]
-  auditLogs     AuditLog[]     @relation("AuditActor")
+  refreshTokens      RefreshToken[]
+  verificationTokens VerificationToken[]
+  auditLogs          AuditLog[]          @relation("AuditActor")
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -205,6 +212,20 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
+model VerificationToken {
+  id        String           @id @default(uuid()) @db.Uuid
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String           @db.Uuid
+  tipo      VerificationTipo
+  tokenHash String           @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([userId, tipo])
+  @@map("verification_tokens")
+}
+
 // ----------------------------------------------------------------------------
 // Cliente (tomador) & dados pessoais (LGPD)
 // ----------------------------------------------------------------------------
@@ -224,6 +245,9 @@ model Cliente {
   aprovadoPor   String?   @db.Uuid
   aprovadoEm    DateTime?
   motivoReprovacao String?
+
+  // LGPD: anonimização (direito ao esquecimento)
+  anonimizadoEm DateTime?
 
   user           User?
   enderecos      Endereco[]
@@ -337,8 +361,13 @@ model Emprestimo {
   // Métricas calculadas
   cetMes  Decimal? @db.Decimal(12, 8) // Custo Efetivo Total ao mês
   cetAno  Decimal? @db.Decimal(12, 8) // CET ao ano
+  iof     Decimal? @db.Decimal(18, 2) // IOF cobrado na liberação
   totalJuros Decimal? @db.Decimal(18, 2)
   totalAPagar Decimal? @db.Decimal(18, 2)
+
+  // Saldos cacheados (mantidos transacionalmente; evitam N+1 no razão)
+  saldoDevedor   Decimal @db.Decimal(18, 2) @default(0) // total a pagar em aberto
+  saldoPrincipal Decimal @db.Decimal(18, 2) @default(0) // principal ainda em aberto
 
   dataContratacao DateTime
   dataLiberacao   DateTime?
@@ -432,6 +461,7 @@ model Pagamento {
   @@index([emprestimoId])
   @@index([parcelaId])
   @@index([status])
+  @@index([dataPagamento])
   @@map("pagamentos")
 }
 
