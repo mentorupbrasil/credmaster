@@ -10,15 +10,17 @@ export const config = {
 const require = createRequire(path.join(process.cwd(), 'package.json'));
 
 function loadServerlessModule() {
-  const distPath = path.join(process.cwd(), '../api/dist/serverless.js');
-  return require(distPath) as {
+  const bundled = path.join(process.cwd(), '.api-dist/serverless.js');
+  const dev = path.join(process.cwd(), '../api/dist/serverless.js');
+  const fs = require('node:fs');
+  const target = fs.existsSync(bundled) ? bundled : dev;
+  return require(target) as {
     getServerlessHandler: () => Promise<
-      (req: unknown, res: unknown, next: () => void) => void
+      (req: unknown, res: unknown, next: (err?: unknown) => void) => void
     >;
   };
 }
 
-/** Next.js repassa só os segmentos após /api — o NestJS espera /api/v1/... */
 function patchUrl(req: NextApiRequest) {
   const raw = req.query.path;
   if (!raw) return;
@@ -32,15 +34,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     patchUrl(req);
     const { getServerlessHandler } = loadServerlessModule();
     const server = await getServerlessHandler();
-    return server(req, res, () => undefined);
+
+    await new Promise<void>((resolve, reject) => {
+      res.once('finish', () => resolve());
+      res.once('close', () => resolve());
+      res.once('error', reject);
+      server(req, res, (err?: unknown) => {
+        if (err) reject(err instanceof Error ? err : new Error(String(err)));
+      });
+    });
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
     console.error('API handler error:', detail, err);
     if (!res.headersSent) {
       res.status(500).json({
         statusCode: 500,
-        message: 'Falha ao iniciar a API',
-        detail,
+        message: detail,
       });
     }
   }

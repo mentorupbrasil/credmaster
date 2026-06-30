@@ -23,14 +23,12 @@ const nextConfig = {
     outputFileTracingRoot: path.join(__dirname, '../../'),
     outputFileTracingIncludes: {
       '/api/[[...path]]': [
+        '.api-dist/**',
         '../api/dist/**',
         '../api/prisma/**',
         '../../node_modules/.prisma/**',
         '../../node_modules/@prisma/client/**',
         '../../node_modules/argon2/**',
-        '../../node_modules/@nestjs/**',
-        '../../node_modules/@codegenie/**',
-        '../../node_modules/reflect-metadata/**',
       ],
     },
   },
