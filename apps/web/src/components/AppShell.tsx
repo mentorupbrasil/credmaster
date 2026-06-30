@@ -21,7 +21,7 @@ export function AppShell({
   onLogout: () => void;
   children: React.ReactNode;
 }) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? '';
   return (
     <div className="flex min-h-screen">
       <aside className="hidden w-60 flex-col bg-brand-900 p-4 text-white md:flex">
