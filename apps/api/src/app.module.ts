@@ -26,6 +26,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { ParametrosModule } from './modules/parametros/parametros.module';
 import { HealthModule } from './modules/health/health.module';
+import { SeedModule } from './modules/seed/seed.module';
 
 @Module({
   imports: [
@@ -71,6 +72,7 @@ import { HealthModule } from './modules/health/health.module';
     RelatoriosModule,
     DashboardModule,
     HealthModule,
+    SeedModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

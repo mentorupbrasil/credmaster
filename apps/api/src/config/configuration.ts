@@ -17,6 +17,11 @@ export default () => ({
   sentry: {
     dsn: process.env.SENTRY_DSN ?? '',
   },
+  seed: {
+    onBoot: process.env.SEED_ON_BOOT ?? 'true',
+    adminEmail: process.env.SEED_ADMIN_EMAIL ?? 'admin@credmaster.dev',
+    adminSenha: process.env.SEED_ADMIN_SENHA ?? 'Admin@123456',
+  },
   jwt: {
     accessSecret: process.env.JWT_ACCESS_SECRET as string,
     refreshSecret: process.env.JWT_REFRESH_SECRET as string,

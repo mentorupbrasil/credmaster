@@ -74,7 +74,8 @@ async function bootstrap() {
     swaggerOptions: { persistAuthorization: true },
   });
 
-  await app.listen(port);
+  // Bind em 0.0.0.0 para funcionar em containers (Render/Railway/Fly/Docker).
+  await app.listen(port, '0.0.0.0');
   // eslint-disable-next-line no-console
   console.log(`CredMaster API rodando em http://localhost:${port}/${apiPrefix}`);
   console.log(`Swagger em http://localhost:${port}/${apiPrefix}/docs`);
