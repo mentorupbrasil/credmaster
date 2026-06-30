@@ -23,12 +23,11 @@ const nextConfig = {
     outputFileTracingIncludes: {
       '/api/[[...path]]': [
         '.api-dist/**',
-        '../api/dist/**',
-        '../api/prisma/**',
         '../../node_modules/.prisma/**',
         '../../node_modules/@prisma/client/**',
         '../../node_modules/argon2/**',
       ],
+      '/**': ['.api-dist/**'],
     },
   },
 };

@@ -1,4 +1,4 @@
-import { cpSync, rmSync } from 'node:fs';
+import { cpSync, readdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
@@ -35,6 +35,7 @@ const apiDist = path.join(root, 'apps/api/dist');
 const webBundle = path.join(root, 'apps/web/.api-dist');
 rmSync(webBundle, { recursive: true, force: true });
 cpSync(apiDist, webBundle, { recursive: true });
-console.log('API copiada para apps/web/.api-dist');
+const files = readdirSync(webBundle).filter((f) => f.endsWith('.js'));
+console.log(`API copiada para apps/web/.api-dist (${files.length} arquivos .js)`);
 
 run('npm', ['run', 'web:build']);

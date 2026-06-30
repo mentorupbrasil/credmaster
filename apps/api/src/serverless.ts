@@ -1,8 +1,16 @@
 import type { Express } from 'express';
-import { prepareServerlessEnv } from './prepare-env';
 import { createNestApp } from './bootstrap';
 
 let cached: Express | undefined;
+
+function prepareServerlessEnv(): void {
+  if (!process.env.DIRECT_URL && process.env.DATABASE_URL) {
+    process.env.DIRECT_URL = process.env.DATABASE_URL.replace('-pooler', '');
+  }
+  if (!process.env.VERCEL) {
+    process.env.VERCEL = '1';
+  }
+}
 
 /** App Express do NestJS — reutilizado entre invocações no Vercel. */
 export async function getExpressApp(): Promise<Express> {
