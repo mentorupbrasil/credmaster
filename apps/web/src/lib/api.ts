@@ -86,12 +86,12 @@ async function request<T>(
   }
 
   if (!res.ok) {
-    const err = body as { message?: string | string[] } | null;
+    const err = body as { message?: string | string[]; detail?: string } | null;
     const msg = err?.message
       ? Array.isArray(err.message)
         ? err.message.join(', ')
         : err.message
-      : `Erro ${res.status}`;
+      : err?.detail ?? `Erro ${res.status}`;
     throw new ApiError(res.status, msg);
   }
   return body as T;

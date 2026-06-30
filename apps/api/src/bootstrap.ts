@@ -66,17 +66,20 @@ export async function createNestApp(): Promise<{
   app.useGlobalFilters(new AllExceptionsFilter());
   app.enableShutdownHooks();
 
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('CredMaster API')
-    .setDescription('API da plataforma de gestão de crédito CredMaster')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .addCookieAuth('refresh_token')
-    .build();
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup(`${apiPrefix}/docs`, app, document, {
-    swaggerOptions: { persistAuthorization: true },
-  });
+  // Swagger pesa no cold start serverless — só fora do Vercel.
+  if (!process.env.VERCEL) {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('CredMaster API')
+      .setDescription('API da plataforma de gestão de crédito CredMaster')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .addCookieAuth('refresh_token')
+      .build();
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup(`${apiPrefix}/docs`, app, document, {
+      swaggerOptions: { persistAuthorization: true },
+    });
+  }
 
   await app.init();
   return { app, expressApp };
