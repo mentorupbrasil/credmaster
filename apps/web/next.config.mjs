@@ -13,7 +13,6 @@ const nextConfig = {
     '@nestjs/platform-express',
     '@nestjs/config',
     '@prisma/client',
-    '@codegenie/serverless-express',
     'argon2',
     'reflect-metadata',
     'class-transformer',
