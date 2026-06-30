@@ -48,6 +48,12 @@ export class CobrancaService implements OnModuleInit {
    * (Não usamos o decorator @Cron porque ele é avaliado antes do .env carregar.)
    */
   onModuleInit() {
+    // No Vercel o cron roda via Vercel Cron → GET /api/v1/cron/cobranca
+    if (process.env.VERCEL || process.env.DISABLE_IN_PROCESS_CRON === 'true') {
+      this.logger.log('Cron interno desabilitado (usa Vercel Cron)');
+      return;
+    }
+
     const cronTime = this.config.get<string>('cobranca.cron', '5 0 * * *');
     const timeZone = this.config.get<string>('timezone', 'America/Sao_Paulo');
 

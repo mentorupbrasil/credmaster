@@ -1,15 +1,18 @@
-export default () => ({
+export default () => {
+  const vercelUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null;
+
+  return {
   env: process.env.NODE_ENV ?? 'development',
   nodeEnv: process.env.NODE_ENV ?? 'development',
   port: parseInt(process.env.PORT ?? '3333', 10),
   apiPrefix: process.env.API_PREFIX ?? 'api',
-  corsOrigins: (process.env.CORS_ORIGINS ?? 'http://localhost:3000')
+  corsOrigins: (process.env.CORS_ORIGINS ?? vercelUrl ?? 'http://localhost:3000')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean),
   timezone: process.env.TIMEZONE ?? 'America/Sao_Paulo',
   app: {
-    webUrl: process.env.WEB_URL ?? 'http://localhost:3001',
+    webUrl: process.env.WEB_URL ?? vercelUrl ?? 'http://localhost:3000',
   },
   mail: {
     from: process.env.MAIL_FROM ?? 'no-reply@credmaster.local',
@@ -40,6 +43,9 @@ export default () => ({
   cobranca: {
     cron: process.env.COBRANCA_CRON ?? '5 0 * * *',
   },
+  cron: {
+    secret: process.env.CRON_SECRET ?? '',
+  },
   regulatorio: {
     multaMaxPercent: process.env.PARAM_MULTA_MAX_PERCENT ?? '2',
     jurosMoraMaxMesPercent: process.env.PARAM_JUROS_MORA_MAX_MES_PERCENT ?? '1',
@@ -54,4 +60,5 @@ export default () => ({
     iofDiarioPercent: process.env.PARAM_IOF_DIARIO_PERCENT ?? '0.0082',
     iofAdicionalPercent: process.env.PARAM_IOF_ADICIONAL_PERCENT ?? '0.38',
   },
-});
+};
+};

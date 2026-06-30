@@ -1,6 +1,8 @@
 'use client';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3333/api';
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ??
+  (typeof window !== 'undefined' ? '/api' : 'http://localhost:3333/api');
 const BASE = `${API_URL}/v1`;
 
 const ACCESS_KEY = 'cm_access';

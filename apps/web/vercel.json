@@ -1,0 +1,17 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "cd ../.. && npm install",
+  "buildCommand": "cd ../.. && npm run vercel-build",
+  "crons": [
+    {
+      "path": "/api/v1/cron/cobranca",
+      "schedule": "5 0 * * *"
+    }
+  ],
+  "functions": {
+    "api/[[...path]].ts": {
+      "maxDuration": 60,
+      "includeFiles": "../api/dist/**,../../node_modules/.prisma/**,../api/prisma/**"
+    }
+  }
+}

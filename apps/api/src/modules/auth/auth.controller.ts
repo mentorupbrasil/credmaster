@@ -45,26 +45,25 @@ export class AuthController {
     private readonly config: ConfigService,
   ) {}
 
-  private setRefreshCookie(res: Response, refreshToken: string) {
+  private refreshCookieOptions(maxAge?: number) {
     const prod = this.config.get<string>('nodeEnv') === 'production';
-    const maxAge = this.config.get<number>('jwt.refreshTtl', 2592000) * 1000;
-    res.cookie(REFRESH_COOKIE, refreshToken, {
+    const sameSite = prod && !process.env.VERCEL ? ('none' as const) : ('lax' as const);
+    return {
       httpOnly: true,
       secure: prod,
-      sameSite: prod ? 'none' : 'lax',
+      sameSite,
       path: '/',
-      maxAge,
-    });
+      ...(maxAge !== undefined ? { maxAge } : {}),
+    };
+  }
+
+  private setRefreshCookie(res: Response, refreshToken: string) {
+    const maxAge = this.config.get<number>('jwt.refreshTtl', 2592000) * 1000;
+    res.cookie(REFRESH_COOKIE, refreshToken, this.refreshCookieOptions(maxAge));
   }
 
   private clearRefreshCookie(res: Response) {
-    const prod = this.config.get<string>('nodeEnv') === 'production';
-    res.clearCookie(REFRESH_COOKIE, {
-      httpOnly: true,
-      secure: prod,
-      sameSite: prod ? 'none' : 'lax',
-      path: '/',
-    });
+    res.clearCookie(REFRESH_COOKIE, this.refreshCookieOptions());
   }
 
   /** Remove o refresh token do corpo da resposta (fica apenas no cookie). */
