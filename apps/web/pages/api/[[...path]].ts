@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { pathToFileURL } from 'url';
-import type { Express } from 'express';
+import type { Application } from 'express';
 import type { NextApiRequest, NextApiResponse } from 'next';
 
 export const config = {
@@ -9,7 +9,7 @@ export const config = {
   maxDuration: 60,
 };
 
-async function loadExpressApp(): Promise<Express> {
+async function loadExpressApp(): Promise<Application> {
   const candidates = [
     path.join(process.cwd(), '.api-dist/serverless.js'),
     path.join(process.cwd(), '../api/dist/serverless.js'),
@@ -34,8 +34,8 @@ async function loadExpressApp(): Promise<Express> {
       );
     }
 
-    const app = (await getApp()) as Express;
-    if (typeof app?.handle !== 'function') {
+    const app = (await getApp()) as Application;
+    if (typeof (app as Application).handle !== 'function') {
       throw new Error(`getExpressApp() não retornou Express válido (${typeof app})`);
     }
     return app;
