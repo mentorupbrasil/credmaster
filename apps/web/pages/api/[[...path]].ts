@@ -8,5 +8,5 @@ export const config = {
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { getServerlessHandler } = await import('../../../api/dist/serverless');
   const server = await getServerlessHandler();
-  return server(req, res, () => undefined);
+  return server(req as never, res as never, () => undefined);
 }
