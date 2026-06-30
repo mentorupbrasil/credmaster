@@ -1,5 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
   "installCommand": "cd ../.. && npm install",
   "buildCommand": "cd ../.. && npm run vercel-build",
   "crons": [
@@ -9,9 +10,8 @@
     }
   ],
   "functions": {
-    "api/[[...path]].ts": {
-      "maxDuration": 60,
-      "includeFiles": "../api/dist/**,../../node_modules/.prisma/**,../api/prisma/**"
+    "pages/api/[[...path]].ts": {
+      "maxDuration": 60
     }
   }
 }
