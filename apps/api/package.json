@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "description": "CredMaster API - backend modular (NestJS + Prisma)",
   "private": true,
+  "main": "dist/main.js",
+  "exports": {
+    "./serverless": "./dist/serverless.js"
+  },
   "scripts": {
     "postinstall": "prisma generate",
     "build": "prisma generate && nest build",

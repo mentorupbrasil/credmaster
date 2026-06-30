@@ -73,13 +73,24 @@ async function request<T>(
   }
 
   const text = await res.text();
-  const body = text ? JSON.parse(text) : null;
+  let body: unknown = null;
+  if (text) {
+    try {
+      body = JSON.parse(text);
+    } catch {
+      throw new ApiError(
+        res.status,
+        'Servidor indisponível. Aguarde alguns segundos e tente novamente.',
+      );
+    }
+  }
 
   if (!res.ok) {
-    const msg = body?.message
-      ? Array.isArray(body.message)
-        ? body.message.join(', ')
-        : body.message
+    const err = body as { message?: string | string[] } | null;
+    const msg = err?.message
+      ? Array.isArray(err.message)
+        ? err.message.join(', ')
+        : err.message
       : `Erro ${res.status}`;
     throw new ApiError(res.status, msg);
   }
