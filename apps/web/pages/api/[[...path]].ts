@@ -1,7 +1,6 @@
 import fs from 'fs';
 import path from 'path';
 import { pathToFileURL } from 'url';
-import type { Application } from 'express';
 import type { NextApiRequest, NextApiResponse } from 'next';
 
 export const config = {
@@ -9,7 +8,13 @@ export const config = {
   maxDuration: 60,
 };
 
-async function loadExpressApp(): Promise<Application> {
+type NestExpress = (
+  req: NextApiRequest,
+  res: NextApiResponse,
+  next: (err?: unknown) => void,
+) => void;
+
+async function loadExpressApp(): Promise<NestExpress> {
   const candidates = [
     path.join(process.cwd(), '.api-dist/serverless.js'),
     path.join(process.cwd(), '../api/dist/serverless.js'),
@@ -18,7 +23,6 @@ async function loadExpressApp(): Promise<Application> {
   for (const file of candidates) {
     if (!fs.existsSync(file)) continue;
 
-    // webpackIgnore: carrega o arquivo compilado em runtime, sem bundlar o NestJS.
     const mod = await import(/* webpackIgnore: true */ pathToFileURL(file).href);
     const exp = mod as Record<string, unknown>;
     const nested = exp.default as Record<string, unknown> | undefined;
@@ -34,11 +38,11 @@ async function loadExpressApp(): Promise<Application> {
       );
     }
 
-    const app = (await getApp()) as Application;
-    if (typeof (app as Application).handle !== 'function') {
-      throw new Error(`getExpressApp() não retornou Express válido (${typeof app})`);
+    const app = await getApp();
+    if (typeof app !== 'function') {
+      throw new Error(`getExpressApp() não retornou função (${typeof app})`);
     }
-    return app;
+    return app as NestExpress;
   }
 
   throw new Error('Build da API não encontrado (.api-dist ou ../api/dist)');
@@ -61,7 +65,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       res.once('finish', () => resolve());
       res.once('close', () => resolve());
       res.once('error', reject);
-      app.handle(req, res, (err: unknown) => {
+      app(req, res, (err?: unknown) => {
         if (err) reject(err instanceof Error ? err : new Error(String(err)));
       });
     });
