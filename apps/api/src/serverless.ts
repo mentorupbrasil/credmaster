@@ -10,5 +10,5 @@ export async function getServerlessHandler(): Promise<Handler> {
     const { expressApp } = await createNestApp();
     cached = serverlessExpress({ app: expressApp });
   }
-  return cached;
+  return cached!;
 }

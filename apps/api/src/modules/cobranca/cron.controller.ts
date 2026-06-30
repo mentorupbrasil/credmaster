@@ -9,18 +9,18 @@ import { CobrancaService } from './cobranca.service';
 @Controller({ path: 'cron', version: '1' })
 export class CronController {
   constructor(
-    private readonly cobranca: CobrancaService,
+    private readonly cobrancaService: CobrancaService,
     private readonly config: ConfigService,
   ) {}
 
   @Public()
   @Get('cobranca')
-  async cobranca(@Headers('authorization') authorization?: string) {
+  async executar(@Headers('authorization') authorization?: string) {
     const secret = this.config.get<string>('cron.secret');
     if (secret && authorization !== `Bearer ${secret}`) {
       throw new UnauthorizedException();
     }
-    await this.cobranca.rotinaAgendada();
+    await this.cobrancaService.rotinaAgendada();
     return { ok: true, timestamp: new Date().toISOString() };
   }
 }
