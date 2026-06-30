@@ -21,7 +21,7 @@
     "web:build": "npm --workspace @credmaster/web run build",
     "web:typecheck": "npm --workspace @credmaster/web run typecheck",
     "web:start": "npm --workspace @credmaster/web run start",
-    "vercel-build": "npm run api:migrate:deploy && npm run api:build && npm run web:build",
+    "vercel-build": "node scripts/vercel-build.mjs",
     "dev": "concurrently -n api,web -c blue,magenta \"npm:api:dev\" \"npm:web:dev\"",
     "lint": "npm --workspace @credmaster/api run lint",
     "format": "prettier --write \"apps/**/*.{ts,tsx}\""
