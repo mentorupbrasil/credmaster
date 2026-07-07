@@ -12,7 +12,7 @@
   "functions": {
     "pages/api/[[...path]].ts": {
       "maxDuration": 60,
-      "includeFiles": ".api-dist/**,.api-dist/node_modules/**"
+      "includeFiles": ".api-dist/bundle.cjs,.api-dist/node_modules/**"
     }
   }
 }

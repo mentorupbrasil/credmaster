@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { pathToFileURL } from 'url';
+import { createRequire } from 'module';
 import type { NextApiRequest, NextApiResponse } from 'next';
 
 export const config = {
@@ -14,38 +14,42 @@ type NestExpress = (
   next: (err?: unknown) => void,
 ) => void;
 
+function patchNodePath() {
+  const nm = path.join(process.cwd(), '.api-dist/node_modules');
+  if (!fs.existsSync(nm)) return;
+  const sep = path.delimiter;
+  process.env.NODE_PATH = [nm, process.env.NODE_PATH].filter(Boolean).join(sep);
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  require('module').Module._initPaths();
+}
+
 async function loadExpressApp(): Promise<NestExpress> {
-  const candidates = [
-    path.join(process.cwd(), '.api-dist/serverless.js'),
-    path.join(process.cwd(), '../api/dist/serverless.js'),
-  ];
+  patchNodePath();
 
-  for (const file of candidates) {
-    if (!fs.existsSync(file)) continue;
+  const requireFromWeb = createRequire(path.join(process.cwd(), 'package.json'));
+  const bundlePath = path.join(process.cwd(), '.api-dist/bundle.cjs');
 
-    const mod = await import(/* webpackIgnore: true */ pathToFileURL(file).href);
-    const exp = mod as Record<string, unknown>;
-    const nested = exp.default as Record<string, unknown> | undefined;
-    const getApp =
-      exp.getExpressApp ??
-      exp.getServerlessHandler ??
-      nested?.getExpressApp ??
-      nested?.getServerlessHandler;
-
-    if (typeof getApp !== 'function') {
-      throw new Error(
-        `Exports inválidos em ${file}: [${Object.keys(exp).join(', ')}]`,
-      );
-    }
-
-    const app = await getApp();
-    if (typeof app !== 'function') {
-      throw new Error(`getExpressApp() não retornou função (${typeof app})`);
-    }
-    return app as NestExpress;
+  if (!fs.existsSync(bundlePath)) {
+    throw new Error('bundle.cjs não encontrado — rode npm run vercel-build');
   }
 
-  throw new Error('Build da API não encontrado (.api-dist ou ../api/dist)');
+  const mod = requireFromWeb(bundlePath) as Record<string, unknown>;
+  const getApp =
+    mod.getExpressApp ??
+    mod.getServerlessHandler ??
+    (mod.default as Record<string, unknown> | undefined)?.getExpressApp;
+
+  if (typeof getApp !== 'function') {
+    throw new Error(
+      `bundle.cjs inválido — exports: [${Object.keys(mod).join(', ')}]`,
+    );
+  }
+
+  const app = await getApp();
+  if (typeof app !== 'function') {
+    throw new Error(`getExpressApp() não retornou função (${typeof app})`);
+  }
+  return app as NestExpress;
 }
 
 function patchUrl(req: NextApiRequest) {

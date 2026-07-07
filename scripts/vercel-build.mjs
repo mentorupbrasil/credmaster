@@ -3,13 +3,13 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
-  readdirSync,
   rmSync,
 } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import esbuild from 'esbuild';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -28,47 +28,26 @@ function run(cmd, args, env = process.env) {
   if (r.status !== 0) process.exit(r.status ?? 1);
 }
 
-/** Copia árvore de dependências da API para .api-dist/node_modules (runtime Vercel). */
-function copyApiDependencies(apiPkgDir, destRoot) {
-  const apiReq = createRequire(path.join(apiPkgDir, 'package.json'));
-  const apiPkg = JSON.parse(readFileSync(path.join(apiPkgDir, 'package.json'), 'utf8'));
-  const toCopy = new Set();
+/** Só módulos nativos/binários ficam fora do bundle. */
+const NATIVE_EXTERNALS = ['@prisma/client', 'argon2'];
 
-  function collect(name) {
-    if (toCopy.has(name)) return;
-    toCopy.add(name);
-    try {
-      const pkgJsonPath = apiReq.resolve(`${name}/package.json`);
-      const pkg = JSON.parse(readFileSync(pkgJsonPath, 'utf8'));
-      for (const dep of Object.keys(pkg.dependencies ?? {})) collect(dep);
-    } catch {
-      /* pacote opcional / não resolvível */
-    }
-  }
-
-  for (const dep of Object.keys(apiPkg.dependencies ?? {})) collect(dep);
-
-  const destNm = path.join(destRoot, 'node_modules');
+function copyNativeModules(destNm) {
   mkdirSync(destNm, { recursive: true });
+  const apiReq = createRequire(path.join(root, 'apps/api/package.json'));
 
-  for (const name of toCopy) {
+  for (const name of NATIVE_EXTERNALS) {
     try {
       const pkgDir = path.dirname(apiReq.resolve(`${name}/package.json`));
-      const dest = path.join(destNm, ...name.split('/'));
-      mkdirSync(path.dirname(dest), { recursive: true });
-      cpSync(pkgDir, dest, { recursive: true, dereference: true });
+      cpSync(pkgDir, path.join(destNm, ...name.split('/')), { recursive: true });
     } catch (e) {
-      console.warn(`Aviso: não copiou ${name}:`, e instanceof Error ? e.message : e);
+      console.warn(`Aviso: nativo ${name} não copiado:`, e instanceof Error ? e.message : e);
     }
   }
 
-  // Prisma engine (gerado pelo postinstall)
   const prismaEngine = path.join(root, 'node_modules/.prisma');
   if (existsSync(prismaEngine)) {
     cpSync(prismaEngine, path.join(destNm, '.prisma'), { recursive: true });
   }
-
-  console.log(`Dependências em .api-dist/node_modules: ${toCopy.size} pacotes`);
 }
 
 console.log('Rodando migrations com conexão direta...');
@@ -81,14 +60,34 @@ run('npm', ['run', 'api:migrate:deploy'], {
 run('npm', ['run', 'api:build']);
 
 const apiDist = path.join(root, 'apps/api/dist');
-const apiPkgDir = path.join(root, 'apps/api');
 const webBundle = path.join(root, 'apps/web/.api-dist');
+const bundleOut = path.join(webBundle, 'bundle.cjs');
 
 rmSync(webBundle, { recursive: true, force: true });
-cpSync(apiDist, webBundle, { recursive: true });
-copyApiDependencies(apiPkgDir, webBundle);
+mkdirSync(webBundle, { recursive: true });
 
-const files = readdirSync(webBundle).filter((f) => f.endsWith('.js'));
-console.log(`API copiada para apps/web/.api-dist (${files.length} arquivos .js)`);
+console.log('Empacotando API (esbuild)...');
+await esbuild.build({
+  entryPoints: [path.join(apiDist, 'serverless.js')],
+  bundle: true,
+  platform: 'node',
+  target: 'node20',
+  format: 'cjs',
+  outfile: bundleOut,
+  external: [
+    ...NATIVE_EXTERNALS,
+    '@nestjs/microservices',
+    '@nestjs/websockets',
+    '@nestjs/platform-socket.io',
+    'class-transformer/storage',
+    'cache-manager',
+  ],
+  logLevel: 'info',
+});
+
+copyNativeModules(path.join(webBundle, 'node_modules'));
+
+const sizeMb = (readFileSync(bundleOut).length / 1024 / 1024).toFixed(1);
+console.log(`Bundle pronto: .api-dist/bundle.cjs (${sizeMb} MB)`);
 
 run('npm', ['run', 'web:build']);
