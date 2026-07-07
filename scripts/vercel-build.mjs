@@ -31,6 +31,19 @@ function run(cmd, args, env = process.env) {
 /** Só módulos nativos/binários ficam fora do bundle. */
 const NATIVE_EXTERNALS = ['@prisma/client', 'argon2'];
 
+/** Dependências opcionais do @nestjs/terminus (não usamos, mas ele tenta importar). */
+const TERMINUS_OPTIONAL = [
+  '@nestjs/mongoose',
+  '@nestjs/typeorm',
+  '@nestjs/typeorm/dist/common/typeorm.utils',
+  '@nestjs/sequelize',
+  '@nestjs/sequelize/dist/common/sequelize.utils',
+  '@mikro-orm/core',
+  'mongoose',
+  'typeorm',
+  'sequelize',
+];
+
 function copyNativeModules(destNm) {
   mkdirSync(destNm, { recursive: true });
   const apiReq = createRequire(path.join(root, 'apps/api/package.json'));
@@ -76,6 +89,7 @@ await esbuild.build({
   outfile: bundleOut,
   external: [
     ...NATIVE_EXTERNALS,
+    ...TERMINUS_OPTIONAL,
     '@nestjs/microservices',
     '@nestjs/websockets',
     '@nestjs/platform-socket.io',
