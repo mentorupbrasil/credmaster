@@ -176,7 +176,7 @@ export default function SimularPublico() {
 
           <p className="text-center text-sm text-slate-500">
             Gostou das condições?{' '}
-            <Link href="/register" className="text-brand-600 underline">
+            <Link href="/register" className="link">
               Cadastre-se
             </Link>{' '}
             para solicitar.

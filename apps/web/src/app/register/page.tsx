@@ -40,8 +40,8 @@ export default function RegisterPage() {
 
   return (
     <AuthLayout
-      title="Criar sua conta"
-      subtitle="Cadastre-se para acompanhar empréstimos e pagamentos pelo portal do cliente."
+      title="Criar conta"
+      subtitle="Cadastre-se para acompanhar seus empréstimos."
       footer={
         <p className="text-center text-sm text-ink-subtle">
           Já tem conta?{' '}
@@ -74,7 +74,7 @@ export default function RegisterPage() {
         <FormField label="Senha" hint="Mín. 8 caracteres, com maiúscula, minúscula e número.">
           <input className="input" type="password" value={form.senha} onChange={set('senha')} required />
         </FormField>
-        <button type="submit" className="btn-primary w-full !py-3" disabled={loading}>
+        <button type="submit" className="btn-primary w-full" disabled={loading}>
           {loading ? 'Criando conta…' : 'Criar conta'}
         </button>
       </form>

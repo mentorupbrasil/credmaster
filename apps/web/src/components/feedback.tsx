@@ -51,9 +51,9 @@ interface DialogState {
 }
 
 const toastStyles: Record<ToastTipo, { box: string; icon: typeof CheckCircle2 }> = {
-  success: { box: 'border-success/20 bg-success-50/95 text-success-700 shadow-card', icon: CheckCircle2 },
-  error: { box: 'border-danger/20 bg-danger-50/95 text-danger-700 shadow-card', icon: AlertCircle },
-  info: { box: 'border-border bg-surface-elevated/95 text-ink-muted shadow-card', icon: Info },
+  success: { box: 'border-border bg-white text-success-700', icon: CheckCircle2 },
+  error: { box: 'border-danger/30 bg-white text-danger-700', icon: AlertCircle },
+  info: { box: 'border-border bg-white text-ink-muted', icon: Info },
 };
 
 export function FeedbackProvider({ children }: { children: React.ReactNode }) {
@@ -103,7 +103,7 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
     <Ctx.Provider value={value}>
       {children}
 
-      <div className="fixed right-5 top-5 z-[100] flex w-[min(22rem,90vw)] flex-col gap-2.5">
+      <div className="fixed right-4 top-4 z-[100] flex w-[min(20rem,90vw)] flex-col gap-2">
         {toasts.map((t) => {
           const style = toastStyles[t.tipo];
           const Icon = style.icon;
@@ -111,7 +111,7 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
             <div
               key={t.id}
               role="status"
-              className={`flex items-start gap-3 rounded-2xl border px-4 py-3.5 text-sm backdrop-blur-xl animate-slide-up ${style.box}`}
+              className={`flex items-start gap-2.5 rounded-lg border px-4 py-3 text-sm shadow-sm ${style.box}`}
             >
               <Icon className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={2} />
               <span className="leading-relaxed">{t.mensagem}</span>
@@ -122,11 +122,11 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
 
       {dialog && (
         <div
-          className="fixed inset-0 z-[110] flex items-center justify-center bg-ink/50 p-4 backdrop-blur-sm animate-fade-in"
+          className="fixed inset-0 z-[110] flex items-center justify-center bg-black/30 p-4"
           onClick={() => fechar(dialog.modo === 'prompt' ? null : false)}
         >
           <div
-            className="w-full max-w-md animate-slide-up rounded-2xl border border-border bg-surface-elevated p-7 shadow-card-hover"
+            className="w-full max-w-md rounded-xl border border-border bg-white p-6 shadow-sm"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="font-display text-lg font-semibold text-ink">{dialog.opts.titulo}</h3>

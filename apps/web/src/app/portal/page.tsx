@@ -59,7 +59,7 @@ export default function PortalHome() {
               <Badge status={e.status} />
               <Link
                 href={`/portal/emprestimos/${e.id}`}
-                className="ml-auto text-sm font-medium text-brand-600"
+                className="ml-auto text-sm font-medium text-accent-600 hover:text-accent-700"
               >
                 Ver detalhes →
               </Link>

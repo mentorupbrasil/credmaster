@@ -182,7 +182,7 @@ export function EmptyState({
 }) {
   return (
     <div className="flex flex-col items-center justify-center px-8 py-20 text-center">
-      <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-border bg-gradient-to-br from-surface-muted to-white text-ink-subtle shadow-inner">
+      <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-border bg-surface-muted text-ink-subtle">
         {Icon ? <Icon className="h-7 w-7" strokeWidth={1.5} /> : <span className="text-xl">—</span>}
       </div>
       <h3 className="font-display text-lg font-semibold text-ink">{title}</h3>
@@ -208,7 +208,7 @@ export function StatusBadge({ status, size = 'default' }: { status: string; size
             ? 'badge-info'
             : 'badge-neutral';
   return (
-    <span className={`${cls} ${size === 'sm' ? '!px-2 !py-0 !text-[10px]' : ''}`}>
+    <span className={`${cls} ${size === 'sm' ? '!text-[11px]' : ''}`}>
       {statusLabel(status)}
     </span>
   );
@@ -268,12 +268,9 @@ export function DataTable({
 /* ─── Loading ─── */
 export function Spinner({ label = 'Carregando…' }: { label?: string }) {
   return (
-    <div className="flex flex-col items-center justify-center py-24">
-      <div className="relative h-10 w-10">
-        <div className="absolute inset-0 rounded-full border-2 border-accent/15" />
-        <div className="absolute inset-0 animate-spin rounded-full border-2 border-transparent border-t-accent-600" />
-      </div>
-      <p className="mt-5 text-sm font-medium text-ink-subtle">{label}</p>
+    <div className="flex flex-col items-center justify-center py-20">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-border border-t-accent" />
+      <p className="mt-4 text-sm text-ink-subtle">{label}</p>
     </div>
   );
 }
@@ -520,13 +517,13 @@ export function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-[120] flex items-center justify-center bg-ink/55 p-4 backdrop-blur-md animate-fade-in"
+      className="fixed inset-0 z-[120] flex items-center justify-center bg-black/30 p-4"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
     >
       <div
-        className={`w-full ${maxW} animate-slide-up rounded-2xl border border-border bg-surface-elevated shadow-card-hover`}
+        className={`w-full ${maxW} rounded-xl border border-border bg-white shadow-sm`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="border-b border-border-subtle px-6 py-5">
@@ -568,8 +565,8 @@ export function Drawer({
 
   return (
     <>
-      <div className="fixed inset-0 z-[110] bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
-      <aside className="fixed inset-y-0 right-0 z-[120] flex w-full max-w-lg flex-col border-l border-border bg-white shadow-card-hover animate-slide-up">
+      <div className="fixed inset-0 z-[110] bg-black/30" onClick={onClose} />
+      <aside className="fixed inset-y-0 right-0 z-[120] flex w-full max-w-lg flex-col border-l border-border bg-white shadow-card">
         <div className="flex items-center justify-between border-b border-border-subtle px-6 py-4">
           <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
           <button type="button" className="btn-icon" onClick={onClose} aria-label="Fechar">
@@ -774,24 +771,23 @@ export function HeroMetric({
     amber: 'hero-metric-amber',
   };
   const iconShell = {
-    blue: 'bg-gradient-to-br from-accent-400 to-accent-700 shadow-glow-sm',
-    green: 'bg-gradient-to-br from-emerald-400 to-success-700 shadow-xs',
-    red: 'bg-gradient-to-br from-rose-400 to-danger-700 shadow-xs',
-    amber: 'bg-gradient-to-br from-amber-400 to-warning-700 shadow-xs',
+    blue: 'bg-accent-50 text-accent-600',
+    green: 'bg-success-50 text-success',
+    red: 'bg-danger-50 text-danger',
+    amber: 'bg-warning-50 text-warning',
   };
   return (
     <div className={`hero-metric ${shell[accent]}`}>
-      <div className="pointer-events-none absolute -right-6 -top-6 h-32 w-32 rounded-full bg-accent/5 blur-2xl" />
-      <div className="relative flex items-start justify-between gap-4">
+      <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-label">{label}</p>
-          <p className="mt-3 font-display text-[2rem] font-bold leading-none tracking-tight text-ink text-money sm:text-[2.25rem]">
+          <p className="mt-2 font-display text-2xl font-semibold tracking-tight text-ink text-money">
             {value}
           </p>
-          {hint && <p className="mt-3 text-xs leading-relaxed text-ink-subtle">{hint}</p>}
+          {hint && <p className="mt-1.5 text-xs text-ink-subtle">{hint}</p>}
         </div>
-        <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-white ${iconShell[accent]}`}>
-          <Icon className="h-5 w-5" strokeWidth={2} />
+        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${iconShell[accent]}`}>
+          <Icon className="h-5 w-5" strokeWidth={1.75} />
         </div>
       </div>
     </div>
@@ -821,29 +817,24 @@ export function ExecutiveBanner({
   stats: { label: string; value: React.ReactNode }[];
 }) {
   const healthStyles = {
-    good: 'border-success/25 bg-success-50/50 text-success-700',
-    warning: 'border-warning/25 bg-warning-50/50 text-warning-700',
-    critical: 'border-danger/25 bg-danger-50/50 text-danger-700',
+    good: 'bg-success-50 text-success-700',
+    warning: 'bg-warning-50 text-warning-700',
+    critical: 'bg-danger-50 text-danger-700',
   };
   return (
     <div className="executive-banner">
-      <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <p className="text-label">Saúde da carteira</p>
-          <div className="mt-2 flex flex-wrap items-center gap-3">
-            <span
-              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-wide ${healthStyles[health]}`}
-            >
-              <span className="h-2 w-2 animate-pulse-soft rounded-full bg-current" />
-              {healthLabel}
-            </span>
-          </div>
+          <span className={`mt-2 inline-flex rounded-md px-2.5 py-1 text-xs font-medium ${healthStyles[health]}`}>
+            {healthLabel}
+          </span>
         </div>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:gap-8">
+        <div className="grid grid-cols-2 gap-6 sm:grid-cols-4">
           {stats.map((s) => (
             <div key={s.label}>
-              <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{s.label}</p>
-              <p className="mt-1 font-display text-lg font-bold text-ink text-money">{s.value}</p>
+              <p className="text-xs text-ink-subtle">{s.label}</p>
+              <p className="mt-0.5 font-display text-lg font-semibold text-ink text-money">{s.value}</p>
             </div>
           ))}
         </div>
@@ -863,9 +854,9 @@ export function QuickActions({
       {actions.map((a) => {
         const Icon = a.icon;
         return (
-          <Link key={a.href} href={a.href} className="quick-action group">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-50 text-accent-600 transition group-hover:bg-accent-100">
-              <Icon className="h-[18px] w-[18px]" strokeWidth={1.75} />
+          <Link key={a.href} href={a.href} className="quick-action">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent-50 text-accent-600">
+              <Icon className="h-4 w-4" strokeWidth={1.75} />
             </span>
             <div className="min-w-0">
               <p className="text-sm font-semibold text-ink">{a.label}</p>

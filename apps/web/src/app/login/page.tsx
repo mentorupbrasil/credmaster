@@ -30,20 +30,20 @@ export default function LoginPage() {
 
   return (
     <AuthLayout
-      title="Bem-vindo de volta"
-      subtitle="Acesse seu painel para gerenciar clientes, contratos e recebimentos."
+      title="Entrar"
+      subtitle="Use suas credenciais para acessar o painel."
       footer={
         <p className="text-center text-sm text-ink-subtle">
           Não tem conta?{' '}
           <Link href="/register" className="link">
-            Criar conta gratuita
+            Cadastre-se
           </Link>
         </p>
       }
     >
-      <form onSubmit={onSubmit} className="space-y-5">
+      <form onSubmit={onSubmit} className="space-y-4">
         {erro && (
-          <div className="rounded-xl border border-danger/20 bg-danger-50 px-4 py-3 text-sm text-danger-700">
+          <div className="rounded-lg border border-danger/20 bg-danger-50 px-3 py-2.5 text-sm text-danger-700">
             {erro}
           </div>
         )}
@@ -63,14 +63,13 @@ export default function LoginPage() {
             className="input"
             type="password"
             autoComplete="current-password"
-            placeholder="••••••••"
             value={senha}
             onChange={(e) => setSenha(e.target.value)}
             required
           />
         </FormField>
-        <button type="submit" className="btn-primary w-full !py-3" disabled={loading}>
-          {loading ? 'Entrando…' : 'Entrar no painel'}
+        <button type="submit" className="btn-primary w-full" disabled={loading}>
+          {loading ? 'Entrando…' : 'Entrar'}
         </button>
         <div className="flex items-center justify-between text-sm">
           <Link href="/esqueci-senha" className="link-subtle">

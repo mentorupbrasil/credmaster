@@ -59,7 +59,7 @@ export default function EsqueciSenha() {
               required
             />
           </FormField>
-          <button type="submit" className="btn-primary w-full !py-3" disabled={loading}>
+          <button type="submit" className="btn-primary w-full" disabled={loading}>
             {loading ? 'Enviando…' : 'Enviar link de redefinição'}
           </button>
         </form>

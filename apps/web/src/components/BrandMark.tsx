@@ -7,28 +7,17 @@ export function BrandMark({ className = 'h-10 w-10' }: { className?: string }) {
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden
     >
-      <defs>
-        <linearGradient id="cm-bg" x1="8" y1="4" x2="32" y2="36" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#818CF8" />
-          <stop offset="1" stopColor="#4338CA" />
-        </linearGradient>
-        <linearGradient id="cm-shine" x1="12" y1="8" x2="28" y2="24" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#FFFFFF" stopOpacity="0.45" />
-          <stop offset="1" stopColor="#FFFFFF" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <rect width="40" height="40" rx="12" fill="url(#cm-bg)" />
-      <rect width="40" height="40" rx="12" fill="url(#cm-shine)" />
+      <rect width="40" height="40" rx="10" fill="#4F46E5" />
       <path
-        d="M20 10L28 14V22C28 26.5 24.5 30 20 30C15.5 30 12 26.5 12 22V14L20 10Z"
+        d="M20 11L27 14.5V21.5C27 25.2 23.9 28 20 28C16.1 28 13 25.2 13 21.5V14.5L20 11Z"
         stroke="white"
-        strokeWidth="1.75"
+        strokeWidth="1.5"
         strokeLinejoin="round"
       />
       <path
-        d="M20 16V24M16.5 20H23.5"
+        d="M20 17V23M17 20H23"
         stroke="white"
-        strokeWidth="1.75"
+        strokeWidth="1.5"
         strokeLinecap="round"
       />
     </svg>
