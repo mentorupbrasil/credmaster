@@ -84,6 +84,8 @@ function patchUrl(req: NextApiRequest) {
   const parts = (Array.isArray(raw) ? raw : [raw]).map(String);
   const qs = req.url?.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
   req.url = `/api/${parts.join('/')}${qs}`;
+  // Next.js inclui `path` em req.query; o ValidationPipe da API rejeita campos extras.
+  delete req.query.path;
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
