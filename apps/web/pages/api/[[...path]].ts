@@ -14,39 +14,53 @@ type NestExpress = (
   next: (err?: unknown) => void,
 ) => void;
 
+let cachedApp: NestExpress | undefined;
+
 function patchNodePath(bundleRoot: string) {
-  const nm = path.join(bundleRoot, 'node_modules');
-  if (!fs.existsSync(nm)) return;
+  const vendor = path.join(bundleRoot, 'vendor');
+  if (!fs.existsSync(vendor)) return;
   const sep = path.delimiter;
-  process.env.NODE_PATH = [nm, process.env.NODE_PATH].filter(Boolean).join(sep);
+  process.env.NODE_PATH = [vendor, process.env.NODE_PATH].filter(Boolean).join(sep);
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   require('module').Module._initPaths();
 }
 
 async function loadExpressApp(): Promise<NestExpress> {
-  const bundleRoot = path.join(process.cwd(), '.api-dist');
-  patchNodePath(bundleRoot);
+  if (cachedApp) return cachedApp;
 
+  const bundleRoot = path.join(process.cwd(), '.api-dist');
   const serverlessPath = path.join(bundleRoot, 'apps/api/dist/serverless.js');
+  const vendorPath = path.join(bundleRoot, 'vendor');
+
   if (!fs.existsSync(serverlessPath)) {
-    throw new Error(`serverless.js não encontrado em ${serverlessPath}`);
+    throw new Error(
+      `API não empacotada: falta ${serverlessPath}. Verifique o build do Vercel.`,
+    );
+  }
+  if (!fs.existsSync(vendorPath)) {
+    throw new Error(
+      `Dependências da API ausentes: falta ${vendorPath}. Verifique outputFileTracingIncludes.`,
+    );
   }
 
+  patchNodePath(bundleRoot);
+
   const requireFrom = createRequire(path.join(process.cwd(), 'package.json'));
+  requireFrom('reflect-metadata');
   const mod = requireFrom(serverlessPath) as Record<string, unknown>;
   const getApp = mod.getExpressApp ?? mod.getServerlessHandler;
 
   if (typeof getApp !== 'function') {
-    throw new Error(
-      `Exports inválidos: [${Object.keys(mod).join(', ')}]`,
-    );
+    throw new Error(`Exports inválidos: [${Object.keys(mod).join(', ')}]`);
   }
 
   const app = await getApp();
   if (typeof app !== 'function') {
     throw new Error(`getExpressApp() retornou ${typeof app}, esperava function`);
   }
-  return app as NestExpress;
+
+  cachedApp = app as NestExpress;
+  return cachedApp;
 }
 
 function patchUrl(req: NextApiRequest) {

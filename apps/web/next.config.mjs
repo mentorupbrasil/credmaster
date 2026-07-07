@@ -21,7 +21,11 @@ const nextConfig = {
     ],
     outputFileTracingRoot: path.join(__dirname, '../../'),
     outputFileTracingIncludes: {
-      '/api/[[...path]]': ['.api-dist/**'],
+      '/api/[[...path]]': [
+        '.api-dist/apps/api/dist/**',
+        // Next.js exclui pastas "node_modules" do trace — usamos "vendor".
+        '.api-dist/vendor/**',
+      ],
     },
   },
 };
