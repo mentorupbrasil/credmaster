@@ -21,10 +21,7 @@ const nextConfig = {
     ],
     outputFileTracingRoot: path.join(__dirname, '../../'),
     outputFileTracingIncludes: {
-      '/api/[[...path]]': [
-        '.api-dist/bundle.cjs',
-        '.api-dist/node_modules/**',
-      ],
+      '/api/[[...path]]': ['.api-dist/**'],
     },
   },
 };

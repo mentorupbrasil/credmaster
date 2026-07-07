@@ -2,14 +2,12 @@ import {
   cpSync,
   existsSync,
   mkdirSync,
-  readFileSync,
   rmSync,
 } from 'node:fs';
-import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import esbuild from 'esbuild';
+import { nodeFileTrace } from '@vercel/nft';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -28,41 +26,6 @@ function run(cmd, args, env = process.env) {
   if (r.status !== 0) process.exit(r.status ?? 1);
 }
 
-/** Só módulos nativos/binários ficam fora do bundle. */
-const NATIVE_EXTERNALS = ['@prisma/client', 'argon2'];
-
-/** Dependências opcionais do @nestjs/terminus (não usamos, mas ele tenta importar). */
-const TERMINUS_OPTIONAL = [
-  '@nestjs/mongoose',
-  '@nestjs/typeorm',
-  '@nestjs/typeorm/dist/common/typeorm.utils',
-  '@nestjs/sequelize',
-  '@nestjs/sequelize/dist/common/sequelize.utils',
-  '@mikro-orm/core',
-  'mongoose',
-  'typeorm',
-  'sequelize',
-];
-
-function copyNativeModules(destNm) {
-  mkdirSync(destNm, { recursive: true });
-  const apiReq = createRequire(path.join(root, 'apps/api/package.json'));
-
-  for (const name of NATIVE_EXTERNALS) {
-    try {
-      const pkgDir = path.dirname(apiReq.resolve(`${name}/package.json`));
-      cpSync(pkgDir, path.join(destNm, ...name.split('/')), { recursive: true });
-    } catch (e) {
-      console.warn(`Aviso: nativo ${name} não copiado:`, e instanceof Error ? e.message : e);
-    }
-  }
-
-  const prismaEngine = path.join(root, 'node_modules/.prisma');
-  if (existsSync(prismaEngine)) {
-    cpSync(prismaEngine, path.join(destNm, '.prisma'), { recursive: true });
-  }
-}
-
 console.log('Rodando migrations com conexão direta...');
 run('npm', ['run', 'api:migrate:deploy'], {
   ...process.env,
@@ -73,35 +36,28 @@ run('npm', ['run', 'api:migrate:deploy'], {
 run('npm', ['run', 'api:build']);
 
 const apiDist = path.join(root, 'apps/api/dist');
+const entry = path.join(apiDist, 'serverless.js');
 const webBundle = path.join(root, 'apps/web/.api-dist');
-const bundleOut = path.join(webBundle, 'bundle.cjs');
 
 rmSync(webBundle, { recursive: true, force: true });
 mkdirSync(webBundle, { recursive: true });
 
-console.log('Empacotando API (esbuild)...');
-await esbuild.build({
-  entryPoints: [path.join(apiDist, 'serverless.js')],
-  bundle: true,
-  platform: 'node',
-  target: 'node20',
-  format: 'cjs',
-  outfile: bundleOut,
-  external: [
-    ...NATIVE_EXTERNALS,
-    ...TERMINUS_OPTIONAL,
-    '@nestjs/microservices',
-    '@nestjs/websockets',
-    '@nestjs/platform-socket.io',
-    'class-transformer/storage',
-    'cache-manager',
-  ],
-  logLevel: 'info',
-});
+// Código compilado da API
+cpSync(apiDist, path.join(webBundle, 'apps/api/dist'), { recursive: true });
 
-copyNativeModules(path.join(webBundle, 'node_modules'));
+console.log('Rastreando dependências da API (@vercel/nft)...');
+const { fileList } = await nodeFileTrace([entry], { base: root, processCwd: root });
 
-const sizeMb = (readFileSync(bundleOut).length / 1024 / 1024).toFixed(1);
-console.log(`Bundle pronto: .api-dist/bundle.cjs (${sizeMb} MB)`);
+let copied = 0;
+for (const abs of fileList) {
+  if (!existsSync(abs)) continue;
+  const rel = path.relative(root, abs);
+  const dest = path.join(webBundle, rel);
+  mkdirSync(path.dirname(dest), { recursive: true });
+  cpSync(abs, dest);
+  copied++;
+}
+
+console.log(`Dependências rastreadas: ${copied} arquivos em .api-dist/`);
 
 run('npm', ['run', 'web:build']);

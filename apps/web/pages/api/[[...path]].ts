@@ -14,8 +14,8 @@ type NestExpress = (
   next: (err?: unknown) => void,
 ) => void;
 
-function patchNodePath() {
-  const nm = path.join(process.cwd(), '.api-dist/node_modules');
+function patchNodePath(bundleRoot: string) {
+  const nm = path.join(bundleRoot, 'node_modules');
   if (!fs.existsSync(nm)) return;
   const sep = path.delimiter;
   process.env.NODE_PATH = [nm, process.env.NODE_PATH].filter(Boolean).join(sep);
@@ -24,30 +24,27 @@ function patchNodePath() {
 }
 
 async function loadExpressApp(): Promise<NestExpress> {
-  patchNodePath();
+  const bundleRoot = path.join(process.cwd(), '.api-dist');
+  patchNodePath(bundleRoot);
 
-  const requireFromWeb = createRequire(path.join(process.cwd(), 'package.json'));
-  const bundlePath = path.join(process.cwd(), '.api-dist/bundle.cjs');
-
-  if (!fs.existsSync(bundlePath)) {
-    throw new Error('bundle.cjs não encontrado — rode npm run vercel-build');
+  const serverlessPath = path.join(bundleRoot, 'apps/api/dist/serverless.js');
+  if (!fs.existsSync(serverlessPath)) {
+    throw new Error(`serverless.js não encontrado em ${serverlessPath}`);
   }
 
-  const mod = requireFromWeb(bundlePath) as Record<string, unknown>;
-  const getApp =
-    mod.getExpressApp ??
-    mod.getServerlessHandler ??
-    (mod.default as Record<string, unknown> | undefined)?.getExpressApp;
+  const requireFrom = createRequire(path.join(process.cwd(), 'package.json'));
+  const mod = requireFrom(serverlessPath) as Record<string, unknown>;
+  const getApp = mod.getExpressApp ?? mod.getServerlessHandler;
 
   if (typeof getApp !== 'function') {
     throw new Error(
-      `bundle.cjs inválido — exports: [${Object.keys(mod).join(', ')}]`,
+      `Exports inválidos: [${Object.keys(mod).join(', ')}]`,
     );
   }
 
   const app = await getApp();
   if (typeof app !== 'function') {
-    throw new Error(`getExpressApp() não retornou função (${typeof app})`);
+    throw new Error(`getExpressApp() retornou ${typeof app}, esperava function`);
   }
   return app as NestExpress;
 }
