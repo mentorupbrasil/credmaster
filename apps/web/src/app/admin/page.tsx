@@ -101,8 +101,8 @@ export default function AdminDashboard() {
   if (!data) return <PageSkeleton />;
 
   const statusChart = [
-    { name: 'Ativos', value: data.graficoStatus.ativos, color: '#2563EB' },
-    { name: 'Em atraso', value: data.graficoStatus.emAtraso, color: '#DC2626' },
+    { name: 'Ativos', value: data.graficoStatus.ativos, color: '#6366F1' },
+    { name: 'Em atraso', value: data.graficoStatus.emAtraso, color: '#E11D48' },
     { name: 'Liquidados', value: data.graficoStatus.liquidados, color: '#059669' },
     { name: 'Vencendo hoje', value: data.graficoStatus.vencendoHoje, color: '#D97706' },
   ];

@@ -7,10 +7,8 @@ import React, {
   useMemo,
   useState,
 } from 'react';
+import { CheckCircle2, AlertCircle, Info } from 'lucide-react';
 
-// ---------------------------------------------------------------------------
-// Toasts
-// ---------------------------------------------------------------------------
 type ToastTipo = 'success' | 'error' | 'info';
 interface Toast {
   id: number;
@@ -51,6 +49,12 @@ interface DialogState {
   opts: ConfirmOptions & PromptOptions;
   resolve: (v: boolean | string | null) => void;
 }
+
+const toastStyles: Record<ToastTipo, { box: string; icon: typeof CheckCircle2 }> = {
+  success: { box: 'border-success/20 bg-success-50/95 text-success-700 shadow-card', icon: CheckCircle2 },
+  error: { box: 'border-danger/20 bg-danger-50/95 text-danger-700 shadow-card', icon: AlertCircle },
+  info: { box: 'border-border bg-surface-elevated/95 text-ink-muted shadow-card', icon: Info },
+};
 
 export function FeedbackProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -99,61 +103,60 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
     <Ctx.Provider value={value}>
       {children}
 
-      {/* Toasts */}
-      <div className="fixed right-4 top-4 z-[100] flex w-80 max-w-[90vw] flex-col gap-2">
-        {toasts.map((t) => (
-          <div
-            key={t.id}
-            role="status"
-            className={`rounded-lg px-4 py-3 text-sm shadow-lg ring-1 ${
-              t.tipo === 'success'
-                ? 'bg-emerald-50 text-emerald-800 ring-emerald-200'
-                : t.tipo === 'error'
-                  ? 'bg-red-50 text-red-800 ring-red-200'
-                  : 'bg-slate-50 text-slate-800 ring-slate-200'
-            }`}
-          >
-            {t.mensagem}
-          </div>
-        ))}
+      <div className="fixed right-5 top-5 z-[100] flex w-[min(22rem,90vw)] flex-col gap-2.5">
+        {toasts.map((t) => {
+          const style = toastStyles[t.tipo];
+          const Icon = style.icon;
+          return (
+            <div
+              key={t.id}
+              role="status"
+              className={`flex items-start gap-3 rounded-2xl border px-4 py-3.5 text-sm backdrop-blur-xl animate-slide-up ${style.box}`}
+            >
+              <Icon className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={2} />
+              <span className="leading-relaxed">{t.mensagem}</span>
+            </div>
+          );
+        })}
       </div>
 
-      {/* Modal de confirmação/prompt */}
       {dialog && (
         <div
-          className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 p-4"
+          className="fixed inset-0 z-[110] flex items-center justify-center bg-ink/50 p-4 backdrop-blur-sm animate-fade-in"
           onClick={() => fechar(dialog.modo === 'prompt' ? null : false)}
         >
           <div
-            className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl"
+            className="w-full max-w-md animate-slide-up rounded-2xl border border-border bg-surface-elevated p-7 shadow-card-hover"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-semibold text-slate-900">{dialog.opts.titulo}</h3>
+            <h3 className="font-display text-lg font-semibold text-ink">{dialog.opts.titulo}</h3>
             {dialog.opts.mensagem && (
-              <p className="mt-2 text-sm text-slate-600">{dialog.opts.mensagem}</p>
+              <p className="mt-2 text-sm leading-relaxed text-ink-muted">{dialog.opts.mensagem}</p>
             )}
 
             {dialog.modo === 'prompt' && (
-              <div className="mt-4">
+              <div className="mt-5">
                 <textarea
                   autoFocus
-                  className="input min-h-[90px] w-full"
+                  className="textarea w-full"
                   placeholder={dialog.opts.placeholder}
                   value={valor}
                   onChange={(e) => setValor(e.target.value)}
                 />
-                {erro && <p className="mt-1 text-xs text-red-600">{erro}</p>}
+                {erro && <p className="mt-1.5 text-xs text-danger">{erro}</p>}
               </div>
             )}
 
-            <div className="mt-6 flex justify-end gap-2">
+            <div className="mt-7 flex justify-end gap-2.5">
               <button
+                type="button"
                 className="btn-ghost"
                 onClick={() => fechar(dialog.modo === 'prompt' ? null : false)}
               >
                 {dialog.opts.cancelar ?? 'Cancelar'}
               </button>
               <button
+                type="button"
                 className={dialog.opts.perigo ? 'btn-danger' : 'btn-primary'}
                 onClick={() => {
                   if (dialog.modo === 'prompt') {

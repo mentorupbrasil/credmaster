@@ -63,8 +63,8 @@ export function MetricCard({
         : accent === 'amber'
           ? 'text-warning'
           : accent === 'blue'
-            ? 'text-primary'
-            : 'text-slate-900';
+            ? 'text-accent-600'
+            : 'text-ink';
 
   return (
     <div className={`metric-card ${accentCls}`}>
@@ -96,16 +96,16 @@ export const Stat = MetricCard;
 /* ─── PageHeader ─── */
 export function Breadcrumbs({ items }: { items: { label: string; href?: string }[] }) {
   return (
-    <nav className="mb-2 flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
+    <nav className="mb-3 flex flex-wrap items-center gap-2 text-2xs font-medium uppercase tracking-wider text-ink-subtle">
       {items.map((item, i) => (
         <React.Fragment key={i}>
-          {i > 0 && <span>/</span>}
+          {i > 0 && <span className="text-ink-faint">/</span>}
           {item.href ? (
-            <Link href={item.href} className="transition hover:text-primary">
+            <Link href={item.href} className="transition-colors hover:text-accent-600">
               {item.label}
             </Link>
           ) : (
-            <span className="font-medium text-slate-600">{item.label}</span>
+            <span className="font-semibold text-ink-muted">{item.label}</span>
           )}
         </React.Fragment>
       ))}
@@ -127,16 +127,20 @@ export function PageHeader({
   badge?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-4 border-b border-border-subtle pb-6 sm:flex-row sm:items-start sm:justify-between">
+    <div className="flex flex-col gap-5 border-b border-border-subtle pb-8 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0">
         {breadcrumbs && breadcrumbs.length > 0 && <Breadcrumbs items={breadcrumbs} />}
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">{title}</h1>
+          <h1 className="font-display text-3xl font-bold tracking-tight text-ink sm:text-[2rem] sm:leading-tight">
+            {title}
+          </h1>
           {badge}
         </div>
-        {subtitle && <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-slate-500">{subtitle}</p>}
+        {subtitle && (
+          <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-ink-muted">{subtitle}</p>
+        )}
       </div>
-      {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
+      {actions && <div className="flex shrink-0 flex-wrap items-center gap-2.5">{actions}</div>}
     </div>
   );
 }
@@ -152,10 +156,12 @@ export function KpiSection({
   children: React.ReactNode;
 }) {
   return (
-    <section className="space-y-4">
-      <div>
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">{title}</h2>
-        {description && <p className="mt-0.5 text-xs text-slate-400">{description}</p>}
+    <section className="space-y-5">
+      <div className="flex items-end justify-between gap-4">
+        <div>
+          <h2 className="text-label">{title}</h2>
+          {description && <p className="mt-1 text-sm text-ink-subtle">{description}</p>}
+        </div>
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">{children}</div>
     </section>
@@ -175,15 +181,15 @@ export function EmptyState({
   icon?: LucideIcon;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
-      <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
-        {Icon ? <Icon className="h-7 w-7" strokeWidth={1.5} /> : <span className="text-2xl">—</span>}
+    <div className="flex flex-col items-center justify-center px-8 py-20 text-center">
+      <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-border bg-gradient-to-br from-surface-muted to-white text-ink-subtle shadow-inner">
+        {Icon ? <Icon className="h-7 w-7" strokeWidth={1.5} /> : <span className="text-xl">—</span>}
       </div>
-      <h3 className="text-base font-semibold text-slate-800">{title}</h3>
+      <h3 className="font-display text-lg font-semibold text-ink">{title}</h3>
       {description && (
-        <p className="mt-2 max-w-md text-sm leading-relaxed text-slate-500">{description}</p>
+        <p className="mt-2 max-w-md text-sm leading-relaxed text-ink-subtle">{description}</p>
       )}
-      {action && <div className="mt-6">{action}</div>}
+      {action && <div className="mt-8">{action}</div>}
     </div>
   );
 }
@@ -344,10 +350,12 @@ export function StatStrip({ items }: { items: { label: string; value: React.Reac
       {items.map((item) => (
         <div
           key={item.label}
-          className="rounded-xl border border-border bg-white px-4 py-3 shadow-sm"
+          className="rounded-2xl border border-border bg-surface-elevated px-4 py-3.5 shadow-xs transition-shadow hover:shadow-card"
         >
-          <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{item.label}</p>
-          <p className={`mt-1 text-lg font-bold text-slate-900 ${item.accent ?? ''}`}>{item.value}</p>
+          <p className="text-label">{item.label}</p>
+          <p className={`mt-1.5 font-display text-xl font-bold text-ink text-money ${item.accent ?? ''}`}>
+            {item.value}
+          </p>
         </div>
       ))}
     </div>
@@ -509,13 +517,13 @@ export function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-[120] flex items-center justify-center bg-ink/55 p-4 backdrop-blur-md animate-fade-in"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
     >
       <div
-        className={`w-full ${maxW} animate-slide-up rounded-2xl border border-border bg-white shadow-card-hover`}
+        className={`w-full ${maxW} animate-slide-up rounded-2xl border border-border bg-surface-elevated shadow-card-hover`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="border-b border-border-subtle px-6 py-5">
@@ -632,7 +640,7 @@ export function DelayTierBadge({ dias }: { dias: number }) {
 }
 
 /* ─── Charts ─── */
-const CHART_COLORS = ['#2563EB', '#DC2626', '#059669', '#D97706', '#64748B'];
+const CHART_COLORS = ['#6366F1', '#E11D48', '#059669', '#D97706', '#64748B'];
 
 export function DonutChart({
   data,
@@ -736,7 +744,7 @@ export function FinanceBarChart({
           ]}
           contentStyle={{ borderRadius: 12, border: '1px solid #E2E8F0', fontSize: 13 }}
         />
-        <Bar dataKey="value" fill="#2563EB" radius={[8, 8, 0, 0]} />
+        <Bar dataKey="value" fill="#6366F1" radius={[10, 10, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );
@@ -756,28 +764,31 @@ export function HeroMetric({
   icon: LucideIcon;
   accent?: 'blue' | 'green' | 'red' | 'amber';
 }) {
-  const gradients = {
-    blue: 'from-primary/10 via-white to-white border-primary/20',
-    green: 'from-success/10 via-white to-white border-success/20',
-    red: 'from-danger/10 via-white to-white border-danger/20',
-    amber: 'from-warning/10 via-white to-white border-warning/20',
+  const shell = {
+    blue: 'hero-metric-blue',
+    green: 'hero-metric-green',
+    red: 'hero-metric-red',
+    amber: 'hero-metric-amber',
   };
-  const iconBg = {
-    blue: 'bg-primary text-white',
-    green: 'bg-success text-white',
-    red: 'bg-danger text-white',
-    amber: 'bg-warning text-white',
+  const iconShell = {
+    blue: 'bg-gradient-to-br from-accent-400 to-accent-700 shadow-glow-sm',
+    green: 'bg-gradient-to-br from-emerald-400 to-success-700 shadow-xs',
+    red: 'bg-gradient-to-br from-rose-400 to-danger-700 shadow-xs',
+    amber: 'bg-gradient-to-br from-amber-400 to-warning-700 shadow-xs',
   };
   return (
-    <div className={`relative overflow-hidden rounded-2xl border bg-gradient-to-br p-6 shadow-card ${gradients[accent]}`}>
-      <div className="flex items-start justify-between">
+    <div className={`hero-metric ${shell[accent]}`}>
+      <div className="pointer-events-none absolute -right-6 -top-6 h-32 w-32 rounded-full bg-accent/5 blur-2xl" />
+      <div className="relative flex items-start justify-between gap-4">
         <div>
-          <p className="text-sm font-medium text-slate-500">{label}</p>
-          <p className="mt-2 text-3xl font-bold tracking-tight text-slate-900">{value}</p>
-          {hint && <p className="mt-2 text-xs text-slate-400">{hint}</p>}
+          <p className="text-label">{label}</p>
+          <p className="mt-3 font-display text-[2rem] font-bold leading-none tracking-tight text-ink text-money sm:text-[2.25rem]">
+            {value}
+          </p>
+          {hint && <p className="mt-3 text-xs leading-relaxed text-ink-subtle">{hint}</p>}
         </div>
-        <div className={`flex h-12 w-12 items-center justify-center rounded-2xl shadow-sm ${iconBg[accent]}`}>
-          <Icon className="h-6 w-6" strokeWidth={1.75} />
+        <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-white ${iconShell[accent]}`}>
+          <Icon className="h-5 w-5" strokeWidth={2} />
         </div>
       </div>
     </div>

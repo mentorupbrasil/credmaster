@@ -14,7 +14,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const { user, loading, logout } = useSession('CLIENTE');
   if (loading || !user) return <Spinner />;
   return (
-    <AppShell title="Portal do Cliente" nav={NAV} userName={user.nome} onLogout={logout}>
+    <AppShell title="Portal do Cliente" homeHref="/portal" nav={NAV} userName={user.nome} onLogout={logout}>
       {children}
     </AppShell>
   );
