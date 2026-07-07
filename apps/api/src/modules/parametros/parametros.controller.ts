@@ -27,6 +27,19 @@ class UpsertParametroDto {
 export class ParametrosController {
   constructor(private readonly parametros: ParametrosService) {}
 
+  @Get('config')
+  getConfig() {
+    return this.parametros.getConfigApp();
+  }
+
+  @Put('config')
+  setConfig(
+    @Body() dto: { taxaJurosPadrao?: string; valorAtrasoDiario?: string; nomeSistema?: string },
+    @CurrentUser('sub') actorId: string,
+  ) {
+    return this.parametros.setConfigApp(dto, actorId);
+  }
+
   @Get()
   list() {
     return this.parametros.list();

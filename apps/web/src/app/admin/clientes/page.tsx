@@ -3,144 +3,129 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
-import { cpfMask } from '@/lib/format';
-import { Badge, Spinner, ErrorBox } from '@/components/ui';
-import { useFeedback } from '@/components/feedback';
+import { cpfMask, phoneMask } from '@/lib/format';
+import { DataTable, PageHeader, Spinner, ErrorBox, StatusBadge } from '@/components/ui';
 
 interface Cliente {
   id: string;
   nome: string;
   cpf: string;
   email: string;
+  telefone: string;
+  whatsapp?: string;
   status: string;
+  rendaMensal?: string;
+  observacoes?: string;
 }
+
 interface Paginated<T> {
   data: T[];
   meta: { total: number; page: number; totalPages: number };
 }
+
+const STATUS_OPTIONS = [
+  { value: '', label: 'Todos os status' },
+  { value: 'APROVADO', label: 'Aprovado' },
+  { value: 'ATIVO', label: 'Ativo' },
+  { value: 'PENDENTE', label: 'Pendente' },
+  { value: 'EM_ANALISE', label: 'Em análise' },
+  { value: 'BLOQUEADO', label: 'Bloqueado' },
+  { value: 'REPROVADO', label: 'Reprovado' },
+];
 
 export default function ClientesPage() {
   const [lista, setLista] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [q, setQ] = useState('');
-  const { toast, confirm, prompt } = useFeedback();
+  const [status, setStatus] = useState('');
 
   const carregar = useCallback(async () => {
     setLoading(true);
+    setErro(null);
     try {
-      const res = await api.get<Paginated<Cliente>>(
-        `/clientes?pageSize=50${q ? `&q=${encodeURIComponent(q)}` : ''}`,
-      );
+      const params = new URLSearchParams({ pageSize: '50' });
+      if (q) params.set('q', q);
+      if (status) params.set('status', status);
+      const res = await api.get<Paginated<Cliente>>(`/clientes?${params}`);
       setLista(res.data);
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Erro');
     } finally {
       setLoading(false);
     }
-  }, [q]);
+  }, [q, status]);
 
   useEffect(() => {
-    carregar();
+    const t = setTimeout(carregar, 300);
+    return () => clearTimeout(t);
   }, [carregar]);
 
-  async function aprovar(id: string) {
-    const ok = await confirm({
-      titulo: 'Aprovar cliente',
-      mensagem: 'Confirmar a aprovação deste cliente?',
-      confirmar: 'Aprovar',
-    });
-    if (!ok) return;
-    try {
-      await api.post(`/clientes/${id}/aprovar`);
-      toast('Cliente aprovado.', 'success');
-      carregar();
-    } catch (e) {
-      toast(e instanceof Error ? e.message : 'Erro ao aprovar', 'error');
-    }
-  }
-  async function reprovar(id: string) {
-    const motivo = await prompt({
-      titulo: 'Reprovar cliente',
-      mensagem: 'Informe o motivo da reprovação.',
-      placeholder: 'Motivo…',
-      obrigatorio: true,
-      perigo: true,
-      confirmar: 'Reprovar',
-    });
-    if (!motivo) return;
-    try {
-      await api.post(`/clientes/${id}/reprovar`, { motivo });
-      toast('Cliente reprovado.', 'success');
-      carregar();
-    } catch (e) {
-      toast(e instanceof Error ? e.message : 'Erro ao reprovar', 'error');
-    }
-  }
-
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Clientes</h1>
+    <div className="space-y-6">
+      <PageHeader
+        title="Clientes"
+        subtitle="Gerencie sua base de clientes"
+        actions={
+          <Link href="/admin/clientes/novo" className="btn-primary">
+            + Novo cliente
+          </Link>
+        }
+      />
+
+      <div className="card-premium flex flex-col gap-3 sm:flex-row sm:items-center">
         <input
-          className="input max-w-xs"
-          placeholder="Buscar por nome, CPF ou e-mail"
+          className="input flex-1"
+          placeholder="Buscar por nome, CPF ou e-mail…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
+        <select
+          className="select sm:w-48"
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+        >
+          {STATUS_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
       </div>
+
       {erro && <ErrorBox message={erro} />}
+
       {loading ? (
         <Spinner />
       ) : (
-        <div className="card overflow-x-auto p-0">
-          <table className="w-full text-sm">
-            <thead className="border-b border-slate-200 text-left text-slate-500">
-              <tr>
-                <th className="px-4 py-3">Nome</th>
-                <th className="px-4 py-3">CPF</th>
-                <th className="px-4 py-3">E-mail</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3 text-right">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {lista.map((c) => (
-                <tr key={c.id} className="border-b border-slate-100 hover:bg-slate-50">
-                  <td className="px-4 py-3 font-medium">
-                    <Link href={`/admin/clientes/${c.id}`} className="text-brand-600">
-                      {c.nome}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3">{cpfMask(c.cpf)}</td>
-                  <td className="px-4 py-3">{c.email}</td>
-                  <td className="px-4 py-3">
-                    <Badge status={c.status} />
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    {(c.status === 'PENDENTE' || c.status === 'EM_ANALISE') && (
-                      <div className="flex justify-end gap-2">
-                        <button className="btn-primary !py-1" onClick={() => aprovar(c.id)}>
-                          Aprovar
-                        </button>
-                        <button className="btn-danger !py-1" onClick={() => reprovar(c.id)}>
-                          Reprovar
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {lista.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
-                    Nenhum cliente encontrado.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          columns={[
+            { key: 'nome', label: 'Nome' },
+            { key: 'cpf', label: 'CPF' },
+            { key: 'whatsapp', label: 'WhatsApp' },
+            { key: 'status', label: 'Status' },
+            { key: 'resumo', label: 'Resumo' },
+          ]}
+          empty="Nenhum cliente encontrado."
+        >
+          {lista.map((c) => (
+            <tr key={c.id}>
+              <td className="font-medium">
+                <Link href={`/admin/clientes/${c.id}`} className="text-primary hover:underline">
+                  {c.nome}
+                </Link>
+              </td>
+              <td className="text-slate-600">{cpfMask(c.cpf)}</td>
+              <td className="text-slate-600">{phoneMask(c.whatsapp ?? c.telefone)}</td>
+              <td>
+                <StatusBadge status={c.status} />
+              </td>
+              <td className="max-w-[200px] truncate text-slate-500">
+                {c.observacoes?.slice(0, 40) || c.email}
+              </td>
+            </tr>
+          ))}
+        </DataTable>
       )}
     </div>
   );

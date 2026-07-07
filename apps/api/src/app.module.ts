@@ -27,11 +27,13 @@ import { AuditModule } from './modules/audit/audit.module';
 import { ParametrosModule } from './modules/parametros/parametros.module';
 import { HealthModule } from './modules/health/health.module';
 import { SeedModule } from './modules/seed/seed.module';
+import { FinanceSummaryModule } from './common/finance/finance-summary.module';
 
 const isVercel = Boolean(process.env.VERCEL);
 
 @Module({
   imports: [
+    FinanceSummaryModule,
     ConfigModule.forRoot({
       isGlobal: true,
       cache: true,

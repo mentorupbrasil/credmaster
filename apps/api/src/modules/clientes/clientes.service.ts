@@ -12,6 +12,7 @@ import {
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { NotificacoesService } from '../notificacoes/notificacoes.service';
+import { FinanceSummaryService } from '../../common/finance/finance-summary.service';
 import {
   CreateClienteDto,
   EnderecoDto,
@@ -25,6 +26,7 @@ export class ClientesService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly notificacoes: NotificacoesService,
+    private readonly finance: FinanceSummaryService,
   ) {}
 
   async listar(query: ListarClientesQuery) {
@@ -37,6 +39,8 @@ export class ClientesService {
               { nome: { contains: query.q, mode: 'insensitive' } },
               { cpf: { contains: query.q.replace(/\D/g, '') } },
               { email: { contains: query.q, mode: 'insensitive' } },
+              { telefone: { contains: query.q.replace(/\D/g, '') } },
+              { whatsapp: { contains: query.q.replace(/\D/g, '') } },
             ],
           }
         : {}),
@@ -80,21 +84,42 @@ export class ClientesService {
       },
     });
     if (!cliente) throw new NotFoundException('Cliente não encontrado');
-    return cliente;
+    const resumoFinanceiro = await this.finance.resumoCliente(id);
+    return { ...cliente, resumoFinanceiro };
   }
 
   async criar(dto: CreateClienteDto, actorId: string) {
-    const cliente = await this.prisma.cliente.create({
-      data: {
-        nome: dto.nome,
-        cpf: dto.cpf,
-        telefone: dto.telefone,
-        email: dto.email.toLowerCase(),
-        rg: dto.rg,
-        rendaMensal: dto.rendaMensal,
-        dataNascimento: dto.dataNascimento ? new Date(dto.dataNascimento) : null,
-        status: ClienteStatus.EM_ANALISE,
-      },
+    const cliente = await this.prisma.$transaction(async (tx) => {
+      const c = await tx.cliente.create({
+        data: {
+          nome: dto.nome,
+          cpf: dto.cpf.replace(/\D/g, ''),
+          telefone: dto.telefone.replace(/\D/g, ''),
+          whatsapp: dto.whatsapp?.replace(/\D/g, '') ?? dto.telefone.replace(/\D/g, ''),
+          email: dto.email.toLowerCase(),
+          rg: dto.rg,
+          observacoes: dto.observacoes,
+          rendaMensal: dto.rendaMensal,
+          dataNascimento: dto.dataNascimento ? new Date(dto.dataNascimento) : null,
+          status: ClienteStatus.APROVADO,
+          aprovadoPor: actorId,
+          aprovadoEm: new Date(),
+        },
+      });
+      if (dto.logradouro && dto.cidade && dto.uf && dto.cep) {
+        await tx.endereco.create({
+          data: {
+            clienteId: c.id,
+            logradouro: dto.logradouro,
+            numero: dto.numero,
+            cidade: dto.cidade,
+            uf: dto.uf,
+            cep: dto.cep.replace(/\D/g, ''),
+            principal: true,
+          },
+        });
+      }
+      return c;
     });
     await this.audit.log({
       actorId,
@@ -106,8 +131,41 @@ export class ClientesService {
     return cliente;
   }
 
+  async excluir(id: string, actorId: string) {
+    await this.prisma.cliente.findFirstOrThrow({
+      where: { id, deletedAt: null },
+    });
+    const ativos = await this.prisma.emprestimo.count({
+      where: {
+        clienteId: id,
+        status: {
+          in: [
+            EmprestimoStatus.ATIVO,
+            EmprestimoStatus.EM_ATRASO,
+            EmprestimoStatus.VENCENDO_HOJE,
+          ],
+        },
+      },
+    });
+    if (ativos > 0) {
+      throw new BadRequestException('Cliente possui contratos ativos. Liquide antes de excluir.');
+    }
+    await this.prisma.cliente.update({
+      where: { id },
+      data: { deletedAt: new Date(), status: ClienteStatus.INATIVO },
+    });
+    await this.audit.log({
+      actorId,
+      acao: 'CLIENTE_EXCLUIDO',
+      entidade: 'Cliente',
+      entidadeId: id,
+    });
+    return { sucesso: true };
+  }
+
   async atualizar(id: string, dto: UpdateClienteDto, actorId: string) {
-    const antes = await this.buscar(id);
+    const antes = await this.prisma.cliente.findFirst({ where: { id, deletedAt: null } });
+    if (!antes) throw new NotFoundException('Cliente não encontrado');
     const cliente = await this.prisma.cliente.update({
       where: { id },
       data: {

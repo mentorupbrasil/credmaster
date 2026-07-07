@@ -48,6 +48,41 @@ export class CreateClienteDto {
   @IsOptional()
   @IsString()
   dataNascimento?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  whatsapp?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  observacoes?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  logradouro?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  numero?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  cidade?: string;
+
+  @ApiPropertyOptional({ example: 'SP' })
+  @IsOptional()
+  @Matches(/^[A-Z]{2}$/)
+  uf?: string;
+
+  @ApiPropertyOptional({ example: '01001000' })
+  @IsOptional()
+  @IsString()
+  cep?: string;
 }
 
 export class UpdateClienteDto extends PartialType(CreateClienteDto) {}

@@ -5,11 +5,13 @@ import { useSession } from '@/lib/useSession';
 import { Spinner } from '@/components/ui';
 
 const NAV = [
-  { href: '/admin', label: 'Dashboard' },
-  { href: '/admin/clientes', label: 'Clientes' },
-  { href: '/admin/emprestimos', label: 'Empréstimos' },
-  { href: '/admin/relatorios', label: 'Relatórios' },
-  { href: '/admin/cobranca', label: 'Cobrança' },
+  { href: '/admin', label: 'Dashboard', icon: '📊' },
+  { href: '/admin/clientes', label: 'Clientes', icon: '👥' },
+  { href: '/admin/emprestimos', label: 'Empréstimos', icon: '💰' },
+  { href: '/admin/recebimentos', label: 'Recebimentos', icon: '💳' },
+  { href: '/admin/cobranca', label: 'Cobrança', icon: '📞' },
+  { href: '/admin/relatorios', label: 'Relatórios', icon: '📈' },
+  { href: '/admin/configuracoes', label: 'Configurações', icon: '⚙️' },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

@@ -23,6 +23,7 @@ import { EmprestimosService } from './emprestimos.service';
 import {
   CancelarEmprestimoDto,
   CreateEmprestimoDto,
+  CreateEmprestimoSimplesDto,
   QuitarEmprestimoDto,
   SimularEmprestimoDto,
 } from './dto/emprestimos.dto';
@@ -74,6 +75,15 @@ export class EmprestimosController {
   @Post('simular')
   simular(@Body() dto: SimularEmprestimoDto) {
     return this.emprestimos.simular(dto);
+  }
+
+  @Roles(Role.ADMIN, Role.ANALISTA)
+  @Post('simples')
+  criarSimples(
+    @Body() dto: CreateEmprestimoSimplesDto,
+    @CurrentUser('sub') actorId: string,
+  ) {
+    return this.emprestimos.criarSimples(dto, actorId);
   }
 
   @Roles(Role.ADMIN, Role.ANALISTA)

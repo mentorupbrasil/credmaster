@@ -5,8 +5,8 @@ import { useSession } from '@/lib/useSession';
 import { Spinner } from '@/components/ui';
 
 const NAV = [
-  { href: '/portal', label: 'Meus empréstimos' },
-  { href: '/portal/notificacoes', label: 'Notificações' },
+  { href: '/portal', label: 'Meus empréstimos', icon: '💰' },
+  { href: '/portal/notificacoes', label: 'Notificações', icon: '🔔' },
 ];
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {

@@ -99,3 +99,41 @@ export class QuitarEmprestimoDto {
   @IsString()
   observacao?: string;
 }
+
+export class CreateEmprestimoSimplesDto {
+  @ApiProperty()
+  @IsUUID()
+  clienteId!: string;
+
+  @ApiProperty({ example: 1000 })
+  @Type(() => Number)
+  @IsNumber()
+  @IsPositive()
+  valorEmprestado!: number;
+
+  @ApiProperty({ example: 20 })
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  taxaJurosPercent!: number;
+
+  @ApiProperty({ example: '2026-07-01' })
+  @IsString()
+  dataEmprestimo!: string;
+
+  @ApiProperty({ example: '2026-08-01' })
+  @IsString()
+  dataVencimento!: string;
+
+  @ApiPropertyOptional({ example: 10 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  multaDiariaFixa?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  observacoes?: string;
+}

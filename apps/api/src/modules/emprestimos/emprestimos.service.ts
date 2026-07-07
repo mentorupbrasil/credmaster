@@ -12,7 +12,9 @@ import {
   ParcelaStatus,
   PagamentoForma,
   PagamentoStatus,
+  ParcelaTipo,
   Prisma,
+  TipoAmortizacao,
 } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -29,8 +31,10 @@ import {
 } from '../../domain/finance/money';
 import { diffDays, toUtcDate } from '../../domain/finance/dates';
 import { calcularEmprestimo } from './emprestimos.calc';
+import { calcularEmprestimoSimples } from '../../domain/finance/simple-loan';
 import {
   CreateEmprestimoDto,
+  CreateEmprestimoSimplesDto,
   SimularEmprestimoDto,
 } from './dto/emprestimos.dto';
 
@@ -242,6 +246,117 @@ export class EmprestimosService {
           entidade: 'Emprestimo',
           entidadeId: emp.id,
           depois: { numeroContrato, valorPrincipal: dto.valorPrincipal },
+        },
+        tx,
+      );
+      return emp;
+    });
+
+    return this.buscar(emprestimo.id);
+  }
+
+  /** Empréstimo simples: principal + juros % + vencimento único. Já libera como ATIVO. */
+  async criarSimples(dto: CreateEmprestimoSimplesDto, actorId: string) {
+    const cliente = await this.prisma.cliente.findUnique({
+      where: { id: dto.clienteId },
+    });
+    if (!cliente) throw new NotFoundException('Cliente não encontrado');
+    if (
+      !([ClienteStatus.APROVADO, ClienteStatus.ATIVO] as ClienteStatus[]).includes(
+        cliente.status,
+      )
+    ) {
+      throw new BadRequestException('Cliente precisa estar ativo para receber empréstimo');
+    }
+
+    const multaDiaria =
+      dto.multaDiariaFixa ??
+      parseFloat((await this.parametros.get('app.valor_atraso_diario')) ?? '10');
+
+    const dataEmprestimo = toUtcDate(dto.dataEmprestimo);
+    const dataVencimento = toUtcDate(dto.dataVencimento);
+    if (dataVencimento <= dataEmprestimo) {
+      throw new BadRequestException('Data de vencimento deve ser após a data do empréstimo');
+    }
+
+    const calc = calcularEmprestimoSimples({
+      valorEmprestado: dto.valorEmprestado,
+      taxaJurosPercent: dto.taxaJurosPercent,
+      dataEmprestimo,
+      dataVencimento,
+      multaDiariaFixa: multaDiaria,
+    });
+
+    const emprestimo = await this.prisma.$transaction(async (tx) => {
+      const numeroContrato = await this.gerarNumeroContrato(tx, dataEmprestimo);
+      const emp = await tx.emprestimo.create({
+        data: {
+          clienteId: dto.clienteId,
+          numeroContrato,
+          valorPrincipal: calc.valorEmprestado,
+          taxaJurosMes: percentToRate(dec(dto.taxaJurosPercent)),
+          taxaJurosPercent: dec(dto.taxaJurosPercent),
+          multaAtrasoPercent: dec(0),
+          jurosMoraMesPercent: dec(0),
+          multaDiariaFixa: calc.multaDiariaFixa,
+          tipoAmortizacao: TipoAmortizacao.BULLET,
+          prazoMeses: 1,
+          prazoDias: calc.prazoDias,
+          diaVencimento: dataVencimento.getUTCDate(),
+          totalJuros: calc.valorJuros,
+          totalAPagar: calc.valorTotalOriginal,
+          saldoDevedor: calc.valorTotalOriginal,
+          saldoPrincipal: calc.valorEmprestado,
+          dataContratacao: dataEmprestimo,
+          dataLiberacao: dataEmprestimo,
+          dataFinal: dataVencimento,
+          observacoes: dto.observacoes,
+          status: EmprestimoStatus.ATIVO,
+          aprovadoPor: actorId,
+          aprovadoEm: new Date(),
+          parcelas: {
+            create: [
+              {
+                numero: 1,
+                tipo: ParcelaTipo.PRINCIPAL,
+                vencimento: dataVencimento,
+                valorPrincipal: calc.valorEmprestado,
+                valorJuros: calc.valorJuros,
+                valorParcela: calc.valorTotalOriginal,
+                saldoDevedorApos: money(0),
+              },
+            ],
+          },
+        },
+      });
+
+      await this.ledger.post(tx, {
+        emprestimoId: emp.id,
+        tipo: LedgerTipo.DESEMBOLSO,
+        direcao: LedgerDirecao.DEBITO,
+        valor: calc.valorEmprestado,
+        competencia: dataEmprestimo,
+        descricao: 'Desembolso do principal',
+        idempotencyKey: `desembolso:${emp.id}`,
+        criadoPor: actorId,
+      });
+      await this.ledger.post(tx, {
+        emprestimoId: emp.id,
+        tipo: LedgerTipo.JUROS_CONTRATUAL,
+        direcao: LedgerDirecao.DEBITO,
+        valor: calc.valorJuros,
+        competencia: dataEmprestimo,
+        descricao: 'Juros do contrato',
+        idempotencyKey: `juros_contratual:${emp.id}`,
+        criadoPor: actorId,
+      });
+      await this.audit.log(
+        {
+          actorId,
+          acao: 'EMPRESTIMO_SIMPLES_CRIADO',
+          entidade: 'Emprestimo',
+          entidadeId: emp.id,
+          depois: { numeroContrato, valor: dto.valorEmprestado },
         },
         tx,
       );

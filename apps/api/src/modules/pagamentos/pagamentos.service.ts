@@ -211,6 +211,30 @@ export class PagamentosService {
     });
   }
 
+  async listarTodos(page = 1, pageSize = 30) {
+    const [total, data] = await this.prisma.$transaction([
+      this.prisma.pagamento.count({ where: { status: PagamentoStatus.CONFIRMADO } }),
+      this.prisma.pagamento.findMany({
+        where: { status: PagamentoStatus.CONFIRMADO },
+        orderBy: { dataPagamento: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: {
+          emprestimo: {
+            select: {
+              numeroContrato: true,
+              cliente: { select: { id: true, nome: true } },
+            },
+          },
+        },
+      }),
+    ]);
+    return {
+      data,
+      meta: { total, page, pageSize, totalPages: Math.ceil(total / pageSize) },
+    };
+  }
+
   /**
    * Recalcula o status do empréstimo a partir das parcelas:
    *  - todas pagas/canceladas -> LIQUIDADO

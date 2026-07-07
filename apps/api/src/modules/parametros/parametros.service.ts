@@ -3,6 +3,12 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { dec, percentToRate, Decimal } from '../../domain/finance/money';
 
+export const APP_PARAM_KEYS = {
+  TAXA_JUROS_PADRAO: 'app.taxa_juros_padrao',
+  VALOR_ATRASO_DIARIO: 'app.valor_atraso_diario',
+  NOME_SISTEMA: 'app.nome_sistema',
+} as const;
+
 export const PARAM_KEYS = {
   MULTA_MAX_PERCENT: 'regulatorio.multa_max_percent',
   JUROS_MORA_MAX_MES_PERCENT: 'regulatorio.juros_mora_max_mes_percent',
@@ -33,6 +39,35 @@ export class ParametrosService {
       create: { chave, valor, descricao, atualizadoPor: actorId },
       update: { valor, descricao, atualizadoPor: actorId },
     });
+  }
+
+  async getConfigApp() {
+    const [taxa, atraso, nome] = await Promise.all([
+      this.get(APP_PARAM_KEYS.TAXA_JUROS_PADRAO),
+      this.get(APP_PARAM_KEYS.VALOR_ATRASO_DIARIO),
+      this.get(APP_PARAM_KEYS.NOME_SISTEMA),
+    ]);
+    return {
+      taxaJurosPadrao: taxa ?? '20',
+      valorAtrasoDiario: atraso ?? '10',
+      nomeSistema: nome ?? 'CredMaster',
+    };
+  }
+
+  async setConfigApp(
+    input: { taxaJurosPadrao?: string; valorAtrasoDiario?: string; nomeSistema?: string },
+    actorId?: string,
+  ) {
+    if (input.taxaJurosPadrao !== undefined) {
+      await this.set(APP_PARAM_KEYS.TAXA_JUROS_PADRAO, input.taxaJurosPadrao, 'Taxa padrão (%)', actorId);
+    }
+    if (input.valorAtrasoDiario !== undefined) {
+      await this.set(APP_PARAM_KEYS.VALOR_ATRASO_DIARIO, input.valorAtrasoDiario, 'Encargo diário (R$)', actorId);
+    }
+    if (input.nomeSistema !== undefined) {
+      await this.set(APP_PARAM_KEYS.NOME_SISTEMA, input.nomeSistema, 'Nome do sistema', actorId);
+    }
+    return this.getConfigApp();
   }
 
   async list() {

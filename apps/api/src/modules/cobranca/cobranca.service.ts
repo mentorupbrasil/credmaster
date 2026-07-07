@@ -13,6 +13,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { LedgerService } from '../ledger/ledger.service';
 import { NotificacoesService } from '../notificacoes/notificacoes.service';
 import { AuditService } from '../audit/audit.service';
+import { FinanceSummaryService } from '../../common/finance/finance-summary.service';
 import { calcularEncargos } from '../../domain/finance/mora';
 import { dec, money, nonNegative, sumMoney, Decimal } from '../../domain/finance/money';
 import { addDays, isoDate, toUtcDate } from '../../domain/finance/dates';
@@ -39,6 +40,7 @@ export class CobrancaService implements OnModuleInit {
     private readonly ledger: LedgerService,
     private readonly notificacoes: NotificacoesService,
     private readonly audit: AuditService,
+    private readonly finance: FinanceSummaryService,
     private readonly config: ConfigService,
     private readonly scheduler: SchedulerRegistry,
   ) {}
@@ -77,6 +79,10 @@ export class CobrancaService implements OnModuleInit {
   async rotinaAgendada() {
     this.logger.log('Iniciando rotina diária de cobrança');
     await this.executar();
+  }
+
+  listarAtrasados() {
+    return this.finance.listarContratosAtrasados();
   }
 
   /**
@@ -153,6 +159,7 @@ export class CobrancaService implements OnModuleInit {
           referencia: ref,
           multaPercent: parcela.emprestimo.multaAtrasoPercent,
           jurosMoraMesPercent: parcela.emprestimo.jurosMoraMesPercent,
+          multaDiariaFixa: parcela.emprestimo.multaDiariaFixa,
         });
 
         // Encargos são NÃO-DECRESCENTES: como só lançamos deltas positivos no

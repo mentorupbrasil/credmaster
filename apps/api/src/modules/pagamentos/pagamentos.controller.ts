@@ -5,6 +5,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
@@ -22,6 +23,14 @@ import {
 @Controller({ version: '1' })
 export class PagamentosController {
   constructor(private readonly pagamentos: PagamentosService) {}
+
+  @Get('pagamentos')
+  listarTodos(
+    @Query('page') page = '1',
+    @Query('pageSize') pageSize = '30',
+  ) {
+    return this.pagamentos.listarTodos(parseInt(page, 10), parseInt(pageSize, 10));
+  }
 
   @Post('emprestimos/:emprestimoId/pagamentos')
   registrar(

@@ -24,6 +24,11 @@ export class CobrancaController {
     private readonly prisma: PrismaService,
   ) {}
 
+  @Get('atrasados')
+  listarAtrasados() {
+    return this.cobranca.listarAtrasados();
+  }
+
   @HttpCode(HttpStatus.OK)
   @Post('executar')
   executar(

@@ -1,27 +1,16 @@
 import { Decimal, dec, money, nonNegative } from './money';
 import { diffDays } from './dates';
 
-/**
- * Cálculo de encargos por atraso (mora).
- *
- * Modelo padrão (CDC):
- *  - Multa: incidência ÚNICA sobre o valor em aberto (limitada por lei, ex.: 2%).
- *  - Juros de mora: pro-rata die (linear), com base na taxa mensal de mora.
- *      moraDiaria = valorEmAberto * (jurosMoraMes / 30) * diasAtraso
- *
- * A função retorna o valor-ALVO de encargos para a data de referência.
- * O serviço de cobrança posta no razão apenas o DELTA em relação ao já
- * lançado, garantindo idempotência (rodar 2x não cobra em dobro).
- */
-
 export interface EncargosInput {
   valorEmAberto: Decimal.Value;
   vencimento: Date;
   referencia: Date;
-  /** Multa em fração (ex.: 0.02 = 2%). */
+  /** Multa em fração (ex.: 0.02 = 2%). Ignorado se multaDiariaFixa > 0. */
   multaPercent: Decimal.Value;
-  /** Juros de mora ao mês em fração (ex.: 0.01 = 1% a.m.). */
+  /** Juros de mora ao mês em fração. Ignorado se multaDiariaFixa > 0. */
   jurosMoraMesPercent: Decimal.Value;
+  /** Encargo fixo por dia (R$). Modelo CredMaster simples. */
+  multaDiariaFixa?: Decimal.Value;
 }
 
 export interface EncargosResult {
@@ -39,8 +28,13 @@ export function calcularEncargos(input: EncargosInput): EncargosResult {
     return { diasAtraso: 0, multa: money(0), jurosMora: money(0), total: money(0) };
   }
 
-  const multa = money(valorEmAberto.mul(dec(input.multaPercent)));
+  const diaria = dec(input.multaDiariaFixa ?? 0);
+  if (diaria.gt(0)) {
+    const encargo = money(diaria.mul(diasAtraso));
+    return { diasAtraso, multa: encargo, jurosMora: money(0), total: encargo };
+  }
 
+  const multa = money(valorEmAberto.mul(dec(input.multaPercent)));
   const moraDiaria = dec(input.jurosMoraMesPercent).div(30);
   const jurosMora = money(valorEmAberto.mul(moraDiaria).mul(diasAtraso));
 

@@ -71,6 +71,15 @@ export class ClientesController {
     return this.clientes.criar(dto, actorId);
   }
 
+  @Roles(Role.ADMIN)
+  @Post(':id/excluir')
+  excluir(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('sub') actorId: string,
+  ) {
+    return this.clientes.excluir(id, actorId);
+  }
+
   @Roles(Role.ADMIN, Role.ANALISTA)
   @Put(':id')
   atualizar(

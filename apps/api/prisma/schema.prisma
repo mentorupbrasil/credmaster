@@ -42,6 +42,9 @@ enum ClienteStatus {
   PENDENTE
   EM_ANALISE
   APROVADO
+  ATIVO
+  INADIMPLENTE
+  QUITADO
   REPROVADO
   BLOQUEADO
   INATIVO
@@ -65,6 +68,7 @@ enum EmprestimoStatus {
   AGUARDANDO_APROVACAO
   APROVADO
   ATIVO
+  VENCENDO_HOJE
   EM_ATRASO
   LIQUIDADO
   INADIMPLENTE
@@ -237,7 +241,9 @@ model Cliente {
   rg        String?
   dataNascimento DateTime?
   telefone  String
+  whatsapp  String?
   email     String        @unique
+  observacoes String?     @db.Text
   rendaMensal Decimal?    @db.Decimal(18, 2)
   status    ClienteStatus @default(PENDENTE)
 
@@ -351,12 +357,16 @@ model Emprestimo {
   // Condições financeiras (snapshot no momento da contratação)
   valorPrincipal      Decimal         @db.Decimal(18, 2)
   taxaJurosMes        Decimal         @db.Decimal(12, 8)
+  taxaJurosPercent    Decimal?        @db.Decimal(8, 4)
   multaAtrasoPercent  Decimal         @db.Decimal(12, 8)
   jurosMoraMesPercent Decimal         @db.Decimal(12, 8)
+  multaDiariaFixa     Decimal         @default(10) @db.Decimal(18, 2)
   tipoAmortizacao     TipoAmortizacao
   periodicidade       Periodicidade   @default(MENSAL)
   prazoMeses          Int
+  prazoDias           Int?
   diaVencimento       Int // dia do mês do vencimento (1-28)
+  observacoes         String?         @db.Text
 
   // Métricas calculadas
   cetMes  Decimal? @db.Decimal(12, 8) // Custo Efetivo Total ao mês

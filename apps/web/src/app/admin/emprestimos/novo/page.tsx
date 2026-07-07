@@ -1,52 +1,78 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { api } from '@/lib/api';
-import { brl, dataBR, percent } from '@/lib/format';
-import { ErrorBox } from '@/components/ui';
+import { brl, dataBR } from '@/lib/format';
+import { PageHeader, ErrorBox, MetricCard } from '@/components/ui';
+import { useFeedback } from '@/components/feedback';
+
+function calcularPreview(
+  valorEmprestado: number,
+  taxaJurosPercent: number,
+  dataEmprestimo: string,
+  dataVencimento: string,
+) {
+  if (!valorEmprestado || !taxaJurosPercent || !dataEmprestimo || !dataVencimento) return null;
+  const valorJuros = valorEmprestado * (taxaJurosPercent / 100);
+  const valorTotal = valorEmprestado + valorJuros;
+  const inicio = new Date(dataEmprestimo + 'T00:00:00Z');
+  const fim = new Date(dataVencimento + 'T00:00:00Z');
+  const prazoDias = Math.max(1, Math.round((fim.getTime() - inicio.getTime()) / 86400000));
+  return { valorJuros, valorTotal, prazoDias };
+}
 
 export default function NovoEmprestimo() {
   const router = useRouter();
+  const { toast } = useFeedback();
   const [clientes, setClientes] = useState<any[]>([]);
+  const [taxaModo, setTaxaModo] = useState<'20' | '30' | 'custom'>('20');
   const [form, setForm] = useState({
     clienteId: '',
-    valorPrincipal: 10000,
-    taxaJurosMes: 2,
-    tipoAmortizacao: 'PRICE',
-    prazoMeses: 6,
-    diaVencimento: 1,
-    multaAtrasoPercent: 2,
-    jurosMoraMesPercent: 1,
+    valorEmprestado: 1000,
+    taxaJurosPercent: 20,
+    dataEmprestimo: new Date().toISOString().slice(0, 10),
+    dataVencimento: '',
+    observacoes: '',
   });
-  const [sim, setSim] = useState<any>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
 
   useEffect(() => {
     api
-      .get<any>('/clientes?status=APROVADO&pageSize=100')
+      .get<any>('/clientes?pageSize=100')
       .then((r) => setClientes(r.data))
       .catch(() => undefined);
     const params = new URLSearchParams(window.location.search);
     const clienteId = params.get('clienteId');
     if (clienteId) setForm((f) => ({ ...f, clienteId }));
+    api.get<any>('/parametros/config').then((cfg) => {
+      const taxa = Number(cfg.taxaJurosPadrao) || 20;
+      setTaxaModo(taxa === 30 ? '30' : taxa === 20 ? '20' : 'custom');
+      setForm((f) => ({ ...f, taxaJurosPercent: taxa }));
+    }).catch(() => undefined);
   }, []);
 
-  function set(field: string, numeric = false) {
-    return (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
-      setForm((f) => ({ ...f, [field]: numeric ? Number(e.target.value) : e.target.value }));
-  }
+  useEffect(() => {
+    if (taxaModo === '20') setForm((f) => ({ ...f, taxaJurosPercent: 20 }));
+    else if (taxaModo === '30') setForm((f) => ({ ...f, taxaJurosPercent: 30 }));
+  }, [taxaModo]);
 
-  async function simular() {
-    setErro(null);
-    try {
-      const { clienteId, multaAtrasoPercent, jurosMoraMesPercent, ...rest } = form;
-      const r = await api.post('/emprestimos/simular', rest);
-      setSim(r);
-    } catch (e) {
-      setErro(e instanceof Error ? e.message : 'Erro');
-    }
+  const preview = useMemo(
+    () =>
+      calcularPreview(
+        form.valorEmprestado,
+        form.taxaJurosPercent,
+        form.dataEmprestimo,
+        form.dataVencimento,
+      ),
+    [form.valorEmprestado, form.taxaJurosPercent, form.dataEmprestimo, form.dataVencimento],
+  );
+
+  function set(field: string, numeric = false) {
+    return (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+      setForm((f) => ({ ...f, [field]: numeric ? Number(e.target.value) : e.target.value }));
   }
 
   async function criar() {
@@ -55,12 +81,19 @@ export default function NovoEmprestimo() {
       setErro('Selecione um cliente.');
       return;
     }
+    if (!form.dataVencimento) {
+      setErro('Informe a data de vencimento.');
+      return;
+    }
     setSalvando(true);
     try {
-      const emp = await api.post<any>('/emprestimos', form);
+      const emp = await api.post<any>('/emprestimos/simples', form);
+      toast('Empréstimo criado com sucesso.', 'success');
       router.replace(`/admin/emprestimos/${emp.id}`);
     } catch (e) {
-      setErro(e instanceof Error ? e.message : 'Erro');
+      const msg = e instanceof Error ? e.message : 'Erro';
+      setErro(msg);
+      toast(msg, 'error');
     } finally {
       setSalvando(false);
     }
@@ -68,14 +101,23 @@ export default function NovoEmprestimo() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Novo empréstimo</h1>
+      <PageHeader
+        title="Novo empréstimo"
+        subtitle="Empréstimo simples com juros percentual"
+        actions={
+          <Link href="/admin/emprestimos" className="btn-ghost">
+            Voltar
+          </Link>
+        }
+      />
+
       {erro && <ErrorBox message={erro} />}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div className="card space-y-4">
+        <div className="card-premium space-y-4">
           <div>
-            <label className="label">Cliente</label>
-            <select className="input" value={form.clienteId} onChange={set('clienteId')}>
+            <label className="label">Cliente *</label>
+            <select className="select" value={form.clienteId} onChange={set('clienteId')}>
               <option value="">Selecione…</option>
               {clientes.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -84,98 +126,106 @@ export default function NovoEmprestimo() {
               ))}
             </select>
           </div>
+
+          <div>
+            <label className="label">Valor emprestado (R$) *</label>
+            <input
+              className="input"
+              type="number"
+              min={1}
+              step="0.01"
+              value={form.valorEmprestado}
+              onChange={set('valorEmprestado', true)}
+            />
+          </div>
+
+          <div>
+            <label className="label">Taxa de juros (%)</label>
+            <div className="mb-2 flex gap-2">
+              {(['20', '30', 'custom'] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  className={taxaModo === m ? 'btn-primary !py-1.5' : 'btn-ghost !py-1.5'}
+                  onClick={() => setTaxaModo(m)}
+                >
+                  {m === 'custom' ? 'Personalizada' : `${m}%`}
+                </button>
+              ))}
+            </div>
+            {taxaModo === 'custom' && (
+              <input
+                className="input"
+                type="number"
+                min={0}
+                step="0.01"
+                value={form.taxaJurosPercent}
+                onChange={set('taxaJurosPercent', true)}
+              />
+            )}
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Valor principal (R$)">
-              <input className="input" type="number" value={form.valorPrincipal} onChange={set('valorPrincipal', true)} />
-            </Field>
-            <Field label="Prazo (meses)">
-              <input className="input" type="number" value={form.prazoMeses} onChange={set('prazoMeses', true)} />
-            </Field>
-            <Field label="Taxa de juros (% a.m.)">
-              <input className="input" type="number" step="0.01" value={form.taxaJurosMes} onChange={set('taxaJurosMes', true)} />
-            </Field>
-            <Field label="Dia do vencimento">
-              <input className="input" type="number" min={1} max={28} value={form.diaVencimento} onChange={set('diaVencimento', true)} />
-            </Field>
-            <Field label="Amortização">
-              <select className="input" value={form.tipoAmortizacao} onChange={set('tipoAmortizacao')}>
-                <option value="PRICE">PRICE (parcelas fixas)</option>
-                <option value="SAC">SAC (amortização constante)</option>
-                <option value="BULLET">BULLET (juros + principal no fim)</option>
-              </select>
-            </Field>
-            <Field label="Multa atraso (%)">
-              <input className="input" type="number" step="0.01" value={form.multaAtrasoPercent} onChange={set('multaAtrasoPercent', true)} />
-            </Field>
-            <Field label="Juros de mora (% a.m.)">
-              <input className="input" type="number" step="0.01" value={form.jurosMoraMesPercent} onChange={set('jurosMoraMesPercent', true)} />
-            </Field>
+            <div>
+              <label className="label">Data do empréstimo *</label>
+              <input
+                className="input"
+                type="date"
+                value={form.dataEmprestimo}
+                onChange={set('dataEmprestimo')}
+              />
+            </div>
+            <div>
+              <label className="label">Data de vencimento *</label>
+              <input
+                className="input"
+                type="date"
+                value={form.dataVencimento}
+                onChange={set('dataVencimento')}
+              />
+            </div>
           </div>
-          <div className="flex gap-2">
-            <button className="btn-ghost" onClick={simular}>
-              Simular
-            </button>
-            <button className="btn-primary" onClick={criar} disabled={salvando}>
-              {salvando ? 'Criando…' : 'Criar empréstimo'}
-            </button>
+
+          <div>
+            <label className="label">Observações</label>
+            <textarea
+              className="input min-h-[80px]"
+              value={form.observacoes}
+              onChange={set('observacoes')}
+            />
           </div>
+
+          <button className="btn-primary w-full" onClick={criar} disabled={salvando}>
+            {salvando ? 'Criando…' : 'Criar empréstimo'}
+          </button>
         </div>
 
-        {sim && (
-          <div className="card space-y-4">
-            <h2 className="text-lg font-semibold">Simulação</h2>
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <Resumo label="Total de juros" value={brl(sim.totalJuros)} />
-              <Resumo label="Total a pagar" value={brl(sim.totalAPagar)} />
-              <Resumo label="CET ao mês" value={percent(sim.cetMes)} />
-              <Resumo label="CET ao ano" value={percent(sim.cetAno)} />
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead className="border-b text-left text-slate-500">
-                  <tr>
-                    <th className="py-2">#</th>
-                    <th className="py-2">Vencimento</th>
-                    <th className="py-2">Juros</th>
-                    <th className="py-2">Amort.</th>
-                    <th className="py-2">Parcela</th>
-                    <th className="py-2">Saldo</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sim.cronograma.map((p: any) => (
-                    <tr key={p.numero} className="border-b border-slate-100">
-                      <td className="py-1.5">{p.numero}</td>
-                      <td className="py-1.5">{dataBR(p.vencimento)}</td>
-                      <td className="py-1.5">{brl(p.valorJuros)}</td>
-                      <td className="py-1.5">{brl(p.valorPrincipal)}</td>
-                      <td className="py-1.5 font-medium">{brl(p.valorParcela)}</td>
-                      <td className="py-1.5">{brl(p.saldoDevedorApos)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+        <div className="card-premium space-y-4">
+          <h2 className="text-lg font-semibold text-slate-900">Prévia do cálculo</h2>
+          {preview ? (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <MetricCard label="Valor emprestado" value={brl(form.valorEmprestado)} />
+                <MetricCard label="Juros" value={brl(preview.valorJuros)} accent="blue" />
+                <MetricCard label="Total a pagar" value={brl(preview.valorTotal)} accent="green" />
+                <MetricCard label="Prazo" value={`${preview.prazoDias} dias`} />
+              </div>
+              <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
+                <p>
+                  <strong>Vencimento:</strong> {dataBR(form.dataVencimento)}
+                </p>
+                <p className="mt-1">
+                  <strong>Taxa:</strong> {form.taxaJurosPercent}% sobre o principal
+                </p>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-slate-400">
+              Preencha os campos para ver a prévia do cálculo.
+            </p>
+          )}
+        </div>
       </div>
-    </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="label">{label}</label>
-      {children}
-    </div>
-  );
-}
-function Resumo({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg bg-slate-50 p-3">
-      <p className="text-xs text-slate-400">{label}</p>
-      <p className="font-semibold">{value}</p>
     </div>
   );
 }
