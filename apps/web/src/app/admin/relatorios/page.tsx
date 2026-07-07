@@ -1,24 +1,28 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { Download } from 'lucide-react';
 import { api } from '@/lib/api';
 import { brl, dataBR } from '@/lib/format';
 import {
   MetricCard,
   PageHeader,
-  Spinner,
+  PageSkeleton,
   ErrorBox,
   DataTable,
   EmptyState,
+  Tabs,
+  FilterBar,
+  FormField,
+  DonutChart,
+  ChartLegend,
 } from '@/components/ui';
 
 type Aba = 'carteira' | 'inadimplencia' | 'recebimentos';
 
 function exportCsv(filename: string, headers: string[], rows: string[][]) {
   const escape = (v: string) => `"${String(v).replace(/"/g, '""')}"`;
-  const csv = [headers.map(escape).join(','), ...rows.map((r) => r.map(escape).join(','))].join(
-    '\n',
-  );
+  const csv = [headers.map(escape).join(','), ...rows.map((r) => r.map(escape).join(','))].join('\n');
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -116,83 +120,89 @@ export default function RelatoriosPage() {
     }
   }
 
-  const tabs: { key: Aba; label: string }[] = [
-    { key: 'carteira', label: 'Carteira' },
+  const tabs = [
+    { key: 'carteira', label: 'Carteira ativa' },
     { key: 'inadimplencia', label: 'Inadimplência' },
     { key: 'recebimentos', label: 'Recebimentos' },
   ];
+
+  const inadChart =
+    inad?.linhas?.reduce(
+      (acc: Record<string, number>, l: any) => {
+        const faixa = l.diasAtraso <= 7 ? '1-7 dias' : l.diasAtraso <= 30 ? '8-30 dias' : '30+ dias';
+        acc[faixa] = (acc[faixa] ?? 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>,
+    ) ?? {};
+
+  const inadChartData = Object.entries(inadChart).map(([name, value], i) => ({
+    name,
+    value: value as number,
+    color: ['#D97706', '#DC2626', '#7F1D1D'][i] ?? '#64748B',
+  }));
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Relatórios"
-        subtitle="Análise da carteira e recebimentos"
+        subtitle="Análise executiva da carteira, inadimplência e fluxo de recebimentos"
+        breadcrumbs={[{ label: 'Admin', href: '/admin' }, { label: 'Relatórios' }]}
         actions={
-          <button className="btn-ghost" onClick={exportar}>
-            ⬇ Exportar CSV
+          <button type="button" className="btn-ghost" onClick={exportar}>
+            <Download className="h-4 w-4" /> Exportar CSV
           </button>
         }
       />
 
-      <div className="flex flex-wrap gap-2">
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            className={aba === t.key ? 'btn-primary' : 'btn-ghost'}
-            onClick={() => setAba(t.key)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <Tabs tabs={tabs} active={aba} onChange={(k) => setAba(k as Aba)} />
 
       {aba === 'recebimentos' && (
-        <div className="card-premium flex flex-wrap gap-3">
-          <div>
-            <label className="label">De</label>
+        <FilterBar>
+          <FormField label="De">
             <input className="input" type="date" value={de} onChange={(e) => setDe(e.target.value)} />
-          </div>
-          <div>
-            <label className="label">Até</label>
+          </FormField>
+          <FormField label="Até">
             <input className="input" type="date" value={ate} onChange={(e) => setAte(e.target.value)} />
-          </div>
+          </FormField>
           <div className="flex items-end">
-            <button className="btn-primary" onClick={carregarReceb}>
-              Filtrar
+            <button type="button" className="btn-primary" onClick={carregarReceb}>
+              Aplicar período
             </button>
           </div>
-        </div>
+        </FilterBar>
       )}
 
-      {erro && <ErrorBox message={erro} />}
+      {erro && <ErrorBox message={erro} onRetry={() => (aba === 'carteira' ? carregarCarteira() : aba === 'inadimplencia' ? carregarInad() : carregarReceb())} />}
+
       {loading ? (
-        <Spinner />
+        <PageSkeleton />
       ) : (
         <>
           {aba === 'carteira' && carteira && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-                <MetricCard label="Contratos ativos" value={carteira.totalContratos} />
-                <MetricCard label="Saldo total" value={brl(carteira.saldoTotal)} accent="blue" />
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+                <MetricCard label="Contratos ativos" value={carteira.totalContratos} accent="blue" />
+                <MetricCard label="Saldo total da carteira" value={brl(carteira.saldoTotal)} />
               </div>
               {carteira.linhas.length === 0 ? (
-                <EmptyState title="Carteira vazia" />
+                <EmptyState title="Carteira vazia" description="Não há contratos ativos para exibir." />
               ) : (
                 <DataTable
                   columns={[
                     { key: 'contrato', label: 'Contrato' },
                     { key: 'cliente', label: 'Cliente' },
                     { key: 'principal', label: 'Principal' },
-                    { key: 'saldo', label: 'Saldo' },
+                    { key: 'saldo', label: 'Saldo', align: 'right' },
                     { key: 'venc', label: 'Vencimento' },
                   ]}
                 >
                   {carteira.linhas.map((l: any) => (
                     <tr key={l.emprestimoId}>
-                      <td className="font-medium">{l.numeroContrato}</td>
+                      <td className="font-semibold">{l.numeroContrato}</td>
                       <td>{l.cliente?.nome}</td>
                       <td>{brl(l.principal)}</td>
-                      <td className="font-medium">{brl(l.saldoDevedor)}</td>
+                      <td className="text-right font-semibold">{brl(l.saldoDevedor)}</td>
                       <td>{dataBR(l.dataFinal)}</td>
                     </tr>
                   ))}
@@ -202,13 +212,20 @@ export default function RelatoriosPage() {
           )}
 
           {aba === 'inadimplencia' && inad && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-                <MetricCard label="Parcelas vencidas" value={inad.totalParcelas} accent="red" />
-                <MetricCard label="Total em aberto" value={brl(inad.totalEmAberto)} accent="red" />
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                <div className="lg:col-span-2 grid grid-cols-2 gap-4">
+                  <MetricCard label="Parcelas vencidas" value={inad.totalParcelas} accent="red" />
+                  <MetricCard label="Total em aberto" value={brl(inad.totalEmAberto)} accent="red" />
+                </div>
+                <div className="card-premium-padded">
+                  <p className="mb-2 text-sm font-semibold text-slate-800">Faixa de atraso</p>
+                  <DonutChart data={inadChartData} height={180} />
+                  <ChartLegend items={inadChartData.map((d) => ({ ...d, value: d.value }))} />
+                </div>
               </div>
               {inad.linhas.length === 0 ? (
-                <EmptyState title="Sem inadimplência" icon="✅" />
+                <EmptyState title="Sem inadimplência" />
               ) : (
                 <DataTable
                   columns={[
@@ -226,10 +243,8 @@ export default function RelatoriosPage() {
                       <td>{l.cliente?.nome}</td>
                       <td>{l.parcela}</td>
                       <td>{dataBR(l.vencimento)}</td>
-                      <td className="text-danger">{l.diasAtraso}</td>
-                      <td className="text-right font-medium text-danger">
-                        {brl(l.totalEmAberto)}
-                      </td>
+                      <td className="font-semibold text-danger">{l.diasAtraso}</td>
+                      <td className="text-right font-semibold text-danger">{brl(l.totalEmAberto)}</td>
                     </tr>
                   ))}
                 </DataTable>
@@ -238,10 +253,14 @@ export default function RelatoriosPage() {
           )}
 
           {aba === 'recebimentos' && receb && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
                 <MetricCard label="Quantidade" value={receb.quantidade} accent="green" />
                 <MetricCard label="Total recebido" value={brl(receb.total)} accent="green" />
+                <MetricCard
+                  label="Período"
+                  value={receb.periodo ? `${dataBR(receb.periodo.de)} — ${dataBR(receb.periodo.ate)}` : 'Completo'}
+                />
               </div>
               {receb.pagamentos.length === 0 ? (
                 <EmptyState title="Nenhum recebimento no período" />
@@ -261,7 +280,7 @@ export default function RelatoriosPage() {
                       <td>{p.cliente?.nome}</td>
                       <td>{p.contrato}</td>
                       <td>{p.forma}</td>
-                      <td className="text-right font-medium text-success">{brl(p.valor)}</td>
+                      <td className="text-right font-bold text-success">{brl(p.valor)}</td>
                     </tr>
                   ))}
                 </DataTable>

@@ -1,18 +1,23 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { AlertTriangle, MessageCircle, CreditCard, CheckCircle2, Eye } from 'lucide-react';
 import { api } from '@/lib/api';
 import { brl, dataBR } from '@/lib/format';
+import { tierAtraso } from '@/lib/finance-ui';
 import {
   DataTable,
   PageHeader,
-  Spinner,
+  PageSkeleton,
   ErrorBox,
-  StatusBadge,
   EmptyState,
   MetricCard,
+  DelayTierBadge,
+  Tabs,
+  HeroMetric,
 } from '@/components/ui';
+import { PaymentModal } from '@/components/PaymentModal';
 import { useFeedback } from '@/components/feedback';
 
 interface Atrasado {
@@ -23,14 +28,20 @@ interface Atrasado {
   diasAtraso: number;
   dataVencimento: string;
   whatsappLink: string;
+  mensagemWhatsapp?: string;
   valorEmprestado: string;
+  encargoAtraso: string;
+  valorTotalOriginal: string;
 }
 
 export default function CobrancaPage() {
-  const { toast, confirm, prompt } = useFeedback();
+  const { toast, confirm } = useFeedback();
   const [lista, setLista] = useState<Atrasado[]>([]);
   const [erro, setErro] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [tier, setTier] = useState('todos');
+  const [payOpen, setPayOpen] = useState(false);
+  const [payEmprestimoId, setPayEmprestimoId] = useState<string | undefined>();
   const [processando, setProcessando] = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
@@ -38,6 +49,7 @@ export default function CobrancaPage() {
     try {
       const r = await api.get<Atrasado[]>('/cobranca/atrasados');
       setLista(r);
+      setErro(null);
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Erro');
     } finally {
@@ -49,46 +61,16 @@ export default function CobrancaPage() {
     carregar();
   }, [carregar]);
 
-  async function registrarPagamento(item: Atrasado) {
-    setProcessando(item.emprestimoId);
-    try {
-      const emp = await api.get<any>(`/emprestimos/${item.emprestimoId}`);
-      const parcela = emp.parcelas?.find(
-        (p: any) => p.status !== 'PAGA' && p.status !== 'CANCELADA',
-      );
-      if (!parcela) {
-        toast('Nenhuma parcela em aberto.', 'error');
-        return;
-      }
-      const emAberto = (
-        Number(parcela.valorParcela) +
-        Number(parcela.multa) +
-        Number(parcela.jurosMora) -
-        Number(parcela.valorPago)
-      ).toFixed(2);
+  const filtered = useMemo(() => {
+    if (tier === 'todos') return lista;
+    return lista.filter((i) => tierAtraso(i.diasAtraso) === tier);
+  }, [lista, tier]);
 
-      const valorStr = await prompt({
-        titulo: `Pagamento — ${item.clienteNome}`,
-        mensagem: `Saldo em aberto: ${brl(item.saldoRestante)}`,
-        valorInicial: emAberto,
-        obrigatorio: true,
-        confirmar: 'Registrar',
-      });
-      if (!valorStr) return;
-
-      await api.post(`/emprestimos/${item.emprestimoId}/pagamentos`, {
-        parcelaId: parcela.id,
-        valor: Number(valorStr.replace(',', '.')),
-        forma: 'PIX',
-      });
-      toast('Pagamento registrado.', 'success');
-      await carregar();
-    } catch (e) {
-      toast(e instanceof Error ? e.message : 'Erro', 'error');
-    } finally {
-      setProcessando(null);
-    }
-  }
+  const totalAtraso = filtered.reduce((acc, i) => acc + Number(i.saldoRestante), 0);
+  const mediaDias = filtered.length
+    ? Math.round(filtered.reduce((a, i) => a + i.diasAtraso, 0) / filtered.length)
+    : 0;
+  const maiorAtraso = filtered.reduce((m, i) => Math.max(m, i.diasAtraso), 0);
 
   async function liquidar(item: Atrasado) {
     const ok = await confirm({
@@ -109,93 +91,105 @@ export default function CobrancaPage() {
     }
   }
 
-  const totalAtraso = lista.reduce((acc, i) => acc + Number(i.saldoRestante), 0);
+  const tierTabs = [
+    { key: 'todos', label: 'Todos', count: lista.length },
+    { key: 'leve', label: 'Leve (≤7d)', count: lista.filter((i) => tierAtraso(i.diasAtraso) === 'leve').length },
+    { key: 'moderado', label: 'Moderado', count: lista.filter((i) => tierAtraso(i.diasAtraso) === 'moderado').length },
+    { key: 'critico', label: 'Crítico', count: lista.filter((i) => tierAtraso(i.diasAtraso) === 'critico').length },
+  ];
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Cobrança"
-        subtitle="Contratos em atraso e ações de recuperação"
+        subtitle="Painel estratégico de recuperação e inadimplência"
+        breadcrumbs={[{ label: 'Admin', href: '/admin' }, { label: 'Cobrança' }]}
       />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <MetricCard label="Contratos em atraso" value={lista.length} accent="red" icon="⚠️" />
-        <MetricCard label="Total em atraso" value={brl(totalAtraso)} accent="red" icon="💸" />
-        <MetricCard
-          label="Média de dias"
-          value={
-            lista.length
-              ? Math.round(lista.reduce((a, i) => a + i.diasAtraso, 0) / lista.length)
-              : 0
-          }
-          icon="📅"
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <HeroMetric
+          label="Total em atraso"
+          value={brl(totalAtraso)}
+          hint={`${filtered.length} contrato(s) na faixa selecionada`}
+          icon={AlertTriangle}
+          accent="red"
         />
+        <MetricCard label="Contratos em atraso" value={lista.length} accent="red" />
+        <MetricCard label="Média de dias" value={mediaDias} />
+        <MetricCard label="Maior atraso" value={`${maiorAtraso} dias`} accent={maiorAtraso > 30 ? 'red' : 'amber'} />
       </div>
 
-      {erro && <ErrorBox message={erro} />}
+      <Tabs tabs={tierTabs} active={tier} onChange={setTier} />
+
+      {erro && <ErrorBox message={erro} onRetry={carregar} />}
 
       {loading ? (
-        <Spinner />
-      ) : lista.length === 0 ? (
+        <PageSkeleton />
+      ) : filtered.length === 0 ? (
         <EmptyState
-          title="Nenhum contrato em atraso"
-          description="Sua carteira está em dia."
-          icon="✅"
+          title="Nenhum contrato nesta faixa"
+          description="Sua carteira está em dia ou não há inadimplência neste segmento."
         />
       ) : (
         <DataTable
           columns={[
             { key: 'cliente', label: 'Cliente' },
             { key: 'contrato', label: 'Contrato' },
-            { key: 'vencimento', label: 'Vencimento' },
-            { key: 'dias', label: 'Dias' },
-            { key: 'saldo', label: 'Saldo', align: 'right' },
-            { key: 'acoes', label: 'Ações', align: 'right' },
+            { key: 'venc', label: 'Vencimento' },
+            { key: 'atraso', label: 'Atraso' },
+            { key: 'original', label: 'Original' },
+            { key: 'multa', label: 'Multa' },
+            { key: 'atualizado', label: 'Atualizado', align: 'right' },
+            { key: 'acoes', label: '', align: 'right' },
           ]}
         >
-          {lista.map((item) => (
+          {filtered.map((item) => (
             <tr key={item.emprestimoId}>
-              <td className="font-medium">{item.clienteNome}</td>
               <td>
-                <Link
-                  href={`/admin/emprestimos/${item.emprestimoId}`}
-                  className="text-primary hover:underline"
-                >
+                <p className="font-semibold text-slate-900">{item.clienteNome}</p>
+              </td>
+              <td>
+                <Link href={`/admin/emprestimos/${item.emprestimoId}`} className="font-medium text-primary hover:underline">
                   {item.numeroContrato}
                 </Link>
               </td>
               <td>{dataBR(item.dataVencimento)}</td>
-              <td>
-                <StatusBadge status="EM_ATRASO" />
-                <span className="ml-1 text-xs text-slate-500">{item.diasAtraso}d</span>
-              </td>
-              <td className="text-right font-semibold text-danger">
-                {brl(item.saldoRestante)}
-              </td>
+              <td><DelayTierBadge dias={item.diasAtraso} /></td>
+              <td>{brl(item.valorTotalOriginal ?? item.valorEmprestado)}</td>
+              <td className="text-warning">{brl(item.encargoAtraso ?? 0)}</td>
+              <td className="text-right font-bold text-danger">{brl(item.saldoRestante)}</td>
               <td className="text-right">
                 <div className="flex justify-end gap-1">
                   <a
                     href={item.whatsappLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="btn-ghost !px-2 !py-1.5 !text-xs"
+                    className="btn-icon"
                     title="WhatsApp"
                   >
-                    💬
+                    <MessageCircle className="h-4 w-4 text-success" />
                   </a>
+                  <Link href={`/admin/emprestimos/${item.emprestimoId}`} className="btn-icon" title="Ver contrato">
+                    <Eye className="h-4 w-4" />
+                  </Link>
                   <button
-                    className="btn-primary !px-2 !py-1.5 !text-xs"
+                    type="button"
+                    className="btn-primary btn-sm"
                     disabled={processando === item.emprestimoId}
-                    onClick={() => registrarPagamento(item)}
+                    onClick={() => {
+                      setPayEmprestimoId(item.emprestimoId);
+                      setPayOpen(true);
+                    }}
                   >
-                    Pagar
+                    <CreditCard className="h-3.5 w-3.5" />
                   </button>
                   <button
-                    className="btn-success !px-2 !py-1.5 !text-xs"
+                    type="button"
+                    className="btn-success btn-sm"
                     disabled={processando === item.emprestimoId}
                     onClick={() => liquidar(item)}
                   >
-                    Liquidar
+                    <CheckCircle2 className="h-3.5 w-3.5" />
                   </button>
                 </div>
               </td>
@@ -203,6 +197,16 @@ export default function CobrancaPage() {
           ))}
         </DataTable>
       )}
+
+      <PaymentModal
+        open={payOpen}
+        onClose={() => {
+          setPayOpen(false);
+          setPayEmprestimoId(undefined);
+        }}
+        preselectedEmprestimoId={payEmprestimoId}
+        onSuccess={carregar}
+      />
     </div>
   );
 }

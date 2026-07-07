@@ -1,12 +1,13 @@
 'use client';
 
+import { Bell, Wallet } from 'lucide-react';
 import { AppShell } from '@/components/AppShell';
 import { useSession } from '@/lib/useSession';
 import { Spinner } from '@/components/ui';
 
 const NAV = [
-  { href: '/portal', label: 'Meus empréstimos', icon: '💰' },
-  { href: '/portal/notificacoes', label: 'Notificações', icon: '🔔' },
+  { href: '/portal', label: 'Meus empréstimos', icon: Wallet },
+  { href: '/portal/notificacoes', label: 'Notificações', icon: Bell },
 ];
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {

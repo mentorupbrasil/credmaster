@@ -2,18 +2,32 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import {
+  Users,
+  Wallet,
+  TrendingUp,
+  AlertTriangle,
+  ArrowRight,
+  Banknote,
+  CalendarClock,
+  CircleDollarSign,
+} from 'lucide-react';
 import { api } from '@/lib/api';
 import { brl, dataBR } from '@/lib/format';
 import {
+  HeroMetric,
+  KpiSection,
   MetricCard,
   PageHeader,
-  Spinner,
+  PageSkeleton,
   ErrorBox,
   SectionCard,
   DataTable,
   StatusBadge,
-  SimpleBarChart,
   EmptyState,
+  DonutChart,
+  ChartLegend,
+  FinanceBarChart,
 } from '@/components/ui';
 
 interface DashboardData {
@@ -71,74 +85,111 @@ export default function AdminDashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [erro, setErro] = useState<string | null>(null);
 
-  useEffect(() => {
+  const carregar = () => {
+    setErro(null);
     api
       .get<DashboardData>('/dashboard')
       .then(setData)
       .catch((e) => setErro(e.message));
+  };
+
+  useEffect(() => {
+    carregar();
   }, []);
 
-  if (erro) return <ErrorBox message={erro} />;
-  if (!data) return <Spinner />;
+  if (erro) return <ErrorBox message={erro} onRetry={carregar} />;
+  if (!data) return <PageSkeleton />;
+
+  const statusChart = [
+    { name: 'Ativos', value: data.graficoStatus.ativos, color: '#2563EB' },
+    { name: 'Em atraso', value: data.graficoStatus.emAtraso, color: '#DC2626' },
+    { name: 'Liquidados', value: data.graficoStatus.liquidados, color: '#059669' },
+    { name: 'Vencendo hoje', value: data.graficoStatus.vencendoHoje, color: '#D97706' },
+  ];
+
+  const recebChart = [
+    { name: 'Previsto', value: Number(data.graficoRecebimento.previsto) },
+    { name: 'Recebido', value: Number(data.graficoRecebimento.recebidoMes) },
+  ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <PageHeader
-        title="Dashboard"
-        subtitle={`Atualizado em ${dataBR(data.data)}`}
+        title="Dashboard executivo"
+        subtitle={`Visão consolidada da carteira · referência ${dataBR(data.data)}`}
       />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <MetricCard label="Clientes ativos" value={data.clientesAtivos} icon="👥" accent="blue" />
-        <MetricCard label="Empréstimos ativos" value={data.emprestimosAtivos} icon="💰" />
-        <MetricCard label="Valor total emprestado" value={brl(data.valorTotalEmprestado)} icon="📤" />
-        <MetricCard label="Valor total a receber" value={brl(data.valorTotalReceber)} icon="📥" accent="blue" />
-        <MetricCard label="Recebido no mês" value={brl(data.valorRecebidoNoMes)} icon="✅" accent="green" />
-        <MetricCard label="Recebido hoje" value={brl(data.valorRecebidoHoje)} icon="💵" accent="green" />
-        <MetricCard label="Em atraso" value={data.emAtraso} icon="⚠️" accent="red" />
-        <MetricCard label="Vencendo hoje" value={data.vencendoHoje} icon="📅" accent="amber" />
-        <MetricCard label="Vencendo em 7 dias" value={data.vencendoProximos7Dias} icon="🗓️" accent="amber" />
-        <MetricCard label="Liquidados" value={data.liquidados} icon="✔️" accent="green" />
-        <MetricCard label="Clientes pendentes" value={data.clientesPendentes} icon="⏳" accent="amber" />
-        <MetricCard label="Carteira em atraso" value={brl(data.carteiraEmAtraso)} icon="🔴" accent="red" />
-        <MetricCard label="Lucro previsto" value={brl(data.lucroPrevisto)} icon="📈" accent="blue" />
-        <MetricCard label="Lucro recebido" value={brl(data.lucroRecebido)} icon="💹" accent="green" />
-        <MetricCard label="Saldo em aberto" value={brl(data.saldoEmAberto)} icon="📊" />
+      {/* Hero KPIs */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <HeroMetric
+          label="Valor total a receber"
+          value={brl(data.valorTotalReceber)}
+          hint="Saldo devedor da carteira ativa"
+          icon={CircleDollarSign}
+          accent="blue"
+        />
+        <HeroMetric
+          label="Recebido no mês"
+          value={brl(data.valorRecebidoNoMes)}
+          hint={`Hoje: ${brl(data.valorRecebidoHoje)}`}
+          icon={Banknote}
+          accent="green"
+        />
+        <HeroMetric
+          label="Carteira em atraso"
+          value={brl(data.carteiraEmAtraso)}
+          hint={`${data.emAtraso} contrato(s) inadimplente(s)`}
+          icon={AlertTriangle}
+          accent="red"
+        />
+        <HeroMetric
+          label="Vencendo hoje"
+          value={data.vencendoHoje}
+          hint={`${data.vencendoProximos7Dias} nos próximos 7 dias`}
+          icon={CalendarClock}
+          accent="amber"
+        />
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <SectionCard title="Status dos contratos">
-          <SimpleBarChart
-            items={[
-              { label: 'Ativos', value: data.graficoStatus.ativos, color: '#2563EB' },
-              { label: 'Atraso', value: data.graficoStatus.emAtraso, color: '#EF4444' },
-              { label: 'Liquidados', value: data.graficoStatus.liquidados, color: '#10B981' },
-              { label: 'Hoje', value: data.graficoStatus.vencendoHoje, color: '#F59E0B' },
-            ]}
-          />
+      <KpiSection title="Carteira & clientes" description="Posição geral da base">
+        <MetricCard label="Clientes ativos" value={data.clientesAtivos} accent="blue" icon={Users} />
+        <MetricCard label="Contratos ativos" value={data.emprestimosAtivos} icon={Wallet} />
+        <MetricCard label="Total emprestado" value={brl(data.valorTotalEmprestado)} />
+        <MetricCard label="Saldo em aberto" value={brl(data.saldoEmAberto)} />
+        <MetricCard label="Liquidados" value={data.liquidados} accent="green" />
+        <MetricCard label="Clientes pendentes" value={data.clientesPendentes} accent="amber" />
+        <MetricCard label="Lucro previsto (juros)" value={brl(data.lucroPrevisto)} accent="blue" />
+        <MetricCard label="Lucro recebido (mês)" value={brl(data.lucroRecebido)} accent="green" icon={TrendingUp} />
+      </KpiSection>
+
+      {/* Analytics */}
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <SectionCard title="Carteira por status" description="Distribuição dos contratos">
+          <DonutChart data={statusChart} />
+          <ChartLegend items={statusChart.map((s) => ({ ...s, value: s.value }))} />
         </SectionCard>
-        <SectionCard title="Recebimento do mês">
-          <SimpleBarChart
-            items={[
-              {
-                label: 'Previsto',
-                value: Number(data.graficoRecebimento.previsto),
-                color: '#94A3B8',
-              },
-              {
-                label: 'Recebido',
-                value: Number(data.graficoRecebimento.recebidoMes),
-                color: '#10B981',
-              },
-            ]}
-          />
+        <SectionCard title="Recebimentos do mês" description="Previsto vs realizado">
+          <FinanceBarChart data={recebChart} />
         </SectionCard>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <SectionCard title="Vencendo hoje">
+      {/* Operations */}
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <SectionCard
+          title="Vencendo hoje"
+          description="Contratos com vencimento na data de referência"
+          noPadding
+          action={
+            <Link href="/admin/emprestimos?status=VENCENDO_HOJE" className="btn-ghost btn-sm">
+              Ver todos <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          }
+        >
           {data.vencendoHojeLista.length === 0 ? (
-            <EmptyState title="Nenhum vencimento hoje" icon="✨" />
+            <EmptyState
+              title="Nenhum vencimento hoje"
+              description="Não há contratos vencendo na data de referência."
+            />
           ) : (
             <DataTable
               columns={[
@@ -147,42 +198,46 @@ export default function AdminDashboard() {
                 { key: 'saldo', label: 'Saldo', align: 'right' },
               ]}
             >
-              {data.vencendoHojeLista.slice(0, 5).map((item) => (
+              {data.vencendoHojeLista.map((item) => (
                 <tr key={item.emprestimoId}>
-                  <td className="font-medium">{item.clienteNome}</td>
+                  <td className="font-medium text-slate-800">{item.clienteNome}</td>
                   <td>
-                    <Link
-                      href={`/admin/emprestimos/${item.emprestimoId}`}
-                      className="text-primary hover:underline"
-                    >
+                    <Link href={`/admin/emprestimos/${item.emprestimoId}`} className="font-medium text-primary hover:underline">
                       {item.numeroContrato}
                     </Link>
                   </td>
-                  <td className="text-right font-medium">{brl(item.saldoRestante)}</td>
+                  <td className="text-right font-semibold">{brl(item.saldoRestante)}</td>
                 </tr>
               ))}
             </DataTable>
           )}
         </SectionCard>
 
-        <SectionCard title="Em atraso">
+        <SectionCard
+          title="Inadimplência"
+          description="Contratos com atraso ativo"
+          noPadding
+          action={
+            <Link href="/admin/cobranca" className="btn-ghost btn-sm">
+              Painel de cobrança <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          }
+        >
           {data.atrasadosLista.length === 0 ? (
-            <EmptyState title="Nenhum contrato em atraso" icon="✅" />
+            <EmptyState title="Carteira em dia" description="Nenhum contrato em atraso no momento." />
           ) : (
             <DataTable
               columns={[
                 { key: 'cliente', label: 'Cliente' },
-                { key: 'dias', label: 'Dias' },
+                { key: 'dias', label: 'Atraso' },
                 { key: 'saldo', label: 'Saldo', align: 'right' },
               ]}
             >
-              {data.atrasadosLista.slice(0, 5).map((item) => (
+              {data.atrasadosLista.map((item) => (
                 <tr key={item.emprestimoId}>
                   <td className="font-medium">{item.clienteNome}</td>
-                  <td className="text-danger font-medium">{item.diasAtraso}d</td>
-                  <td className="text-right font-medium text-danger">
-                    {brl(item.saldoRestante)}
-                  </td>
+                  <td className="font-semibold text-danger">{item.diasAtraso} dias</td>
+                  <td className="text-right font-semibold text-danger">{brl(item.saldoRestante)}</td>
                 </tr>
               ))}
             </DataTable>
@@ -190,10 +245,26 @@ export default function AdminDashboard() {
         </SectionCard>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <SectionCard title="Últimos pagamentos">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <SectionCard
+          title="Últimos pagamentos"
+          noPadding
+          action={
+            <Link href="/admin/recebimentos" className="btn-ghost btn-sm">
+              Ver histórico <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          }
+        >
           {data.ultimosPagamentos.length === 0 ? (
-            <EmptyState title="Nenhum pagamento recente" />
+            <EmptyState
+              title="Nenhum pagamento recente"
+              description="Os recebimentos confirmados aparecerão aqui."
+              action={
+                <Link href="/admin/recebimentos" className="btn-primary">
+                  Registrar pagamento
+                </Link>
+              }
+            />
           ) : (
             <DataTable
               columns={[
@@ -204,18 +275,33 @@ export default function AdminDashboard() {
             >
               {data.ultimosPagamentos.map((p) => (
                 <tr key={p.id}>
-                  <td>{dataBR(p.dataPagamento)}</td>
+                  <td className="text-slate-600">{dataBR(p.dataPagamento)}</td>
                   <td>{p.clienteNome}</td>
-                  <td className="text-right font-medium text-success">{brl(p.valor)}</td>
+                  <td className="text-right font-semibold text-success">{brl(p.valor)}</td>
                 </tr>
               ))}
             </DataTable>
           )}
         </SectionCard>
 
-        <SectionCard title="Últimos empréstimos">
+        <SectionCard
+          title="Últimos empréstimos"
+          noPadding
+          action={
+            <Link href="/admin/emprestimos" className="btn-ghost btn-sm">
+              Ver contratos <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          }
+        >
           {data.ultimosEmprestimos.length === 0 ? (
-            <EmptyState title="Nenhum empréstimo recente" />
+            <EmptyState
+              title="Nenhum empréstimo cadastrado"
+              action={
+                <Link href="/admin/emprestimos/novo" className="btn-primary">
+                  Criar empréstimo
+                </Link>
+              }
+            />
           ) : (
             <DataTable
               columns={[
@@ -227,16 +313,13 @@ export default function AdminDashboard() {
               {data.ultimosEmprestimos.map((e) => (
                 <tr key={e.id}>
                   <td>
-                    <Link
-                      href={`/admin/emprestimos/${e.id}`}
-                      className="font-medium text-primary hover:underline"
-                    >
+                    <Link href={`/admin/emprestimos/${e.id}`} className="font-medium text-primary hover:underline">
                       {e.numeroContrato}
                     </Link>
                   </td>
                   <td>{e.clienteNome}</td>
                   <td>
-                    <StatusBadge status={e.status} />
+                    <StatusBadge status={e.status} size="sm" />
                   </td>
                 </tr>
               ))}

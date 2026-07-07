@@ -1,18 +1,22 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { Plus } from 'lucide-react';
 import { api } from '@/lib/api';
 import { brl, dataBR } from '@/lib/format';
 import {
   DataTable,
   PageHeader,
-  Spinner,
+  PageSkeleton,
   ErrorBox,
-  Modal,
+  FilterBar,
+  SearchInput,
+  StatStrip,
   EmptyState,
+  MetricCard,
 } from '@/components/ui';
-import { useFeedback } from '@/components/feedback';
+import { PaymentModal } from '@/components/PaymentModal';
 
 interface Pagamento {
   id: string;
@@ -27,23 +31,21 @@ interface Pagamento {
 }
 
 export default function RecebimentosPage() {
-  const { toast } = useFeedback();
   const [lista, setLista] = useState<Pagamento[]>([]);
   const [erro, setErro] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
-  const [emprestimos, setEmprestimos] = useState<any[]>([]);
-  const [emprestimoId, setEmprestimoId] = useState('');
-  const [parcelaId, setParcelaId] = useState('');
-  const [valor, setValor] = useState('');
-  const [forma, setForma] = useState('PIX');
-  const [salvando, setSalvando] = useState(false);
+  const [busca, setBusca] = useState('');
+  const [forma, setForma] = useState('');
+  const [de, setDe] = useState('');
+  const [ate, setAte] = useState('');
 
   const carregar = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await api.get<{ data: Pagamento[] }>('/pagamentos?pageSize=50');
+      const r = await api.get<{ data: Pagamento[] }>('/pagamentos?pageSize=100');
       setLista(r.data);
+      setErro(null);
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Erro');
     } finally {
@@ -55,88 +57,71 @@ export default function RecebimentosPage() {
     carregar();
   }, [carregar]);
 
-  async function abrirModal() {
-    setModalOpen(true);
-    setEmprestimoId('');
-    setParcelaId('');
-    setValor('');
-    try {
-      const r = await api.get<any>('/emprestimos?status=ATIVO&pageSize=100');
-      const r2 = await api.get<any>('/emprestimos?status=EM_ATRASO&pageSize=100');
-      setEmprestimos([...r.data, ...r2.data]);
-    } catch {
-      setEmprestimos([]);
-    }
-  }
-
-  async function selecionarEmprestimo(id: string) {
-    setEmprestimoId(id);
-    setParcelaId('');
-    setValor('');
-    if (!id) return;
-    try {
-      const emp = await api.get<any>(`/emprestimos/${id}`);
-      const parcela = emp.parcelas?.find(
-        (p: any) => p.status !== 'PAGA' && p.status !== 'CANCELADA',
-      );
-      if (parcela) {
-        setParcelaId(parcela.id);
-        const emAberto =
-          Number(parcela.valorParcela) +
-          Number(parcela.multa) +
-          Number(parcela.jurosMora) -
-          Number(parcela.valorPago);
-        setValor(emAberto.toFixed(2));
+  const filtered = useMemo(() => {
+    return lista.filter((p) => {
+      if (forma && p.forma !== forma) return false;
+      if (de && p.dataPagamento.slice(0, 10) < de) return false;
+      if (ate && p.dataPagamento.slice(0, 10) > ate) return false;
+      if (busca) {
+        const q = busca.toLowerCase();
+        if (
+          !p.emprestimo.cliente.nome.toLowerCase().includes(q) &&
+          !p.emprestimo.numeroContrato.toLowerCase().includes(q)
+        )
+          return false;
       }
-    } catch {
-      toast('Erro ao carregar empréstimo', 'error');
-    }
-  }
+      return true;
+    });
+  }, [lista, busca, forma, de, ate]);
 
-  async function registrar() {
-    if (!emprestimoId || !parcelaId || !valor) {
-      toast('Preencha todos os campos.', 'error');
-      return;
-    }
-    setSalvando(true);
-    try {
-      await api.post(`/emprestimos/${emprestimoId}/pagamentos`, {
-        parcelaId,
-        valor: Number(valor),
-        forma,
-      });
-      toast('Pagamento registrado.', 'success');
-      setModalOpen(false);
-      await carregar();
-    } catch (e) {
-      toast(e instanceof Error ? e.message : 'Erro ao registrar', 'error');
-    } finally {
-      setSalvando(false);
-    }
-  }
+  const total = filtered.reduce((a, p) => a + Number(p.valor), 0);
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Recebimentos"
-        subtitle="Histórico de pagamentos confirmados"
+        subtitle="Controle financeiro de pagamentos confirmados e registros em tempo real"
+        breadcrumbs={[{ label: 'Admin', href: '/admin' }, { label: 'Recebimentos' }]}
         actions={
-          <button className="btn-primary" onClick={abrirModal}>
-            + Registrar pagamento
+          <button type="button" className="btn-primary" onClick={() => setModalOpen(true)}>
+            <Plus className="h-4 w-4" /> Registrar pagamento
           </button>
         }
       />
 
-      {erro && <ErrorBox message={erro} />}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <MetricCard label="Pagamentos (filtro)" value={filtered.length} accent="blue" />
+        <MetricCard label="Total recebido" value={brl(total)} accent="green" />
+        <MetricCard label="Ticket médio" value={brl(filtered.length ? total / filtered.length : 0)} />
+        <MetricCard label="Base total" value={lista.length} hint="Últimos 100 registros" />
+      </div>
+
+      <FilterBar>
+        <SearchInput value={busca} onChange={setBusca} placeholder="Buscar cliente ou contrato…" />
+        <div className="flex flex-wrap gap-2">
+          <select className="select w-full sm:w-36" value={forma} onChange={(e) => setForma(e.target.value)}>
+            <option value="">Todas formas</option>
+            <option value="PIX">PIX</option>
+            <option value="DINHEIRO">Dinheiro</option>
+            <option value="TED">TED</option>
+            <option value="BOLETO">Boleto</option>
+            <option value="CARTAO">Cartão</option>
+          </select>
+          <input className="input w-full sm:w-36" type="date" value={de} onChange={(e) => setDe(e.target.value)} />
+          <input className="input w-full sm:w-36" type="date" value={ate} onChange={(e) => setAte(e.target.value)} />
+        </div>
+      </FilterBar>
+
+      {erro && <ErrorBox message={erro} onRetry={carregar} />}
 
       {loading ? (
-        <Spinner />
-      ) : lista.length === 0 ? (
+        <PageSkeleton />
+      ) : filtered.length === 0 ? (
         <EmptyState
-          title="Nenhum recebimento"
-          description="Registre o primeiro pagamento de um empréstimo."
+          title="Nenhum recebimento encontrado"
+          description="Registre pagamentos parciais ou totais dos contratos em aberto."
           action={
-            <button className="btn-primary" onClick={abrirModal}>
+            <button type="button" className="btn-primary" onClick={() => setModalOpen(true)}>
               Registrar pagamento
             </button>
           }
@@ -151,85 +136,27 @@ export default function RecebimentosPage() {
             { key: 'valor', label: 'Valor', align: 'right' },
           ]}
         >
-          {lista.map((p) => (
+          {filtered.map((p) => (
             <tr key={p.id}>
-              <td>{dataBR(p.dataPagamento)}</td>
+              <td className="text-slate-600">{dataBR(p.dataPagamento)}</td>
               <td>
-                <Link
-                  href={`/admin/clientes/${p.emprestimo.cliente.id}`}
-                  className="text-primary hover:underline"
-                >
+                <Link href={`/admin/clientes/${p.emprestimo.cliente.id}`} className="font-medium hover:text-primary">
                   {p.emprestimo.cliente.nome}
                 </Link>
               </td>
               <td>
-                <Link
-                  href={`/admin/emprestimos/${p.emprestimoId}`}
-                  className="font-medium text-primary hover:underline"
-                >
+                <Link href={`/admin/emprestimos/${p.emprestimoId}`} className="font-semibold text-primary hover:underline">
                   {p.emprestimo.numeroContrato}
                 </Link>
               </td>
-              <td>{p.forma}</td>
-              <td className="text-right font-semibold text-success">{brl(p.valor)}</td>
+              <td><span className="badge-neutral">{p.forma}</span></td>
+              <td className="text-right text-base font-bold text-success">{brl(p.valor)}</td>
             </tr>
           ))}
         </DataTable>
       )}
 
-      <Modal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        title="Registrar pagamento"
-        footer={
-          <>
-            <button className="btn-ghost" onClick={() => setModalOpen(false)}>
-              Cancelar
-            </button>
-            <button className="btn-primary" onClick={registrar} disabled={salvando}>
-              {salvando ? 'Salvando…' : 'Registrar'}
-            </button>
-          </>
-        }
-      >
-        <div className="space-y-3">
-          <div>
-            <label className="label">Empréstimo</label>
-            <select
-              className="select"
-              value={emprestimoId}
-              onChange={(e) => selecionarEmprestimo(e.target.value)}
-            >
-              <option value="">Selecione…</option>
-              {emprestimos.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.numeroContrato} — {e.cliente?.nome}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="label">Valor (R$)</label>
-            <input
-              className="input"
-              type="number"
-              step="0.01"
-              value={valor}
-              onChange={(e) => setValor(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="label">Forma de pagamento</label>
-            <select className="select" value={forma} onChange={(e) => setForma(e.target.value)}>
-              <option value="PIX">PIX</option>
-              <option value="DINHEIRO">Dinheiro</option>
-              <option value="TRANSFERENCIA">Transferência</option>
-              <option value="BOLETO">Boleto</option>
-              <option value="CARTAO">Cartão</option>
-            </select>
-          </div>
-        </div>
-      </Modal>
+      <PaymentModal open={modalOpen} onClose={() => setModalOpen(false)} onSuccess={carregar} />
     </div>
   );
 }
