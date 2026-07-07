@@ -22,6 +22,7 @@
     "web:typecheck": "npm --workspace @credmaster/web run typecheck",
     "web:start": "npm --workspace @credmaster/web run start",
     "vercel-build": "node scripts/vercel-build.mjs",
+    "generate:deck": "node scripts/generate-apresentacao.mjs",
     "dev": "concurrently -n api,web -c blue,magenta \"npm:api:dev\" \"npm:web:dev\"",
     "lint": "npm --workspace @credmaster/api run lint",
     "format": "prettier --write \"apps/**/*.{ts,tsx}\""

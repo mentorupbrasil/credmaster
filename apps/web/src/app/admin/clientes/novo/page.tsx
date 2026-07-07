@@ -73,6 +73,7 @@ export default function NovoClientePage() {
       <PageHeader
         title="Novo cliente"
         subtitle="Cadastre um novo cliente no sistema"
+        breadcrumbs={[{ label: 'Admin', href: '/admin' }, { label: 'Clientes', href: '/admin/clientes' }, { label: 'Novo' }]}
         actions={
           <Link href="/admin/clientes" className="btn-ghost">
             Voltar
@@ -82,9 +83,9 @@ export default function NovoClientePage() {
 
       {erro && <ErrorBox message={erro} />}
 
-      <form onSubmit={salvar} className="card-premium space-y-6">
+      <form onSubmit={salvar} className="card-premium-padded space-y-8">
         <div>
-          <h2 className="mb-4 text-base font-semibold text-slate-800">Dados pessoais</h2>
+          <h2 className="mb-4 text-base font-semibold text-ink">Dados pessoais</h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Nome completo *">
               <input className="input" required value={form.nome} onChange={set('nome')} />
@@ -118,7 +119,7 @@ export default function NovoClientePage() {
         </div>
 
         <div>
-          <h2 className="mb-4 text-base font-semibold text-slate-800">Endereço</h2>
+          <h2 className="mb-4 text-base font-semibold text-ink">Endereço</h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="CEP">
               <input className="input" value={form.cep} onChange={set('cep')} />

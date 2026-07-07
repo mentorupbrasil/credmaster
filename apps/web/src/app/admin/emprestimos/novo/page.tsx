@@ -104,6 +104,7 @@ export default function NovoEmprestimo() {
       <PageHeader
         title="Novo empréstimo"
         subtitle="Empréstimo simples com juros percentual"
+        breadcrumbs={[{ label: 'Admin', href: '/admin' }, { label: 'Empréstimos', href: '/admin/emprestimos' }, { label: 'Novo' }]}
         actions={
           <Link href="/admin/emprestimos" className="btn-ghost">
             Voltar
@@ -114,7 +115,7 @@ export default function NovoEmprestimo() {
       {erro && <ErrorBox message={erro} />}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div className="card-premium space-y-4">
+        <div className="card-premium-padded space-y-5">
           <div>
             <label className="label">Cliente *</label>
             <select className="select" value={form.clienteId} onChange={set('clienteId')}>
@@ -200,8 +201,8 @@ export default function NovoEmprestimo() {
           </button>
         </div>
 
-        <div className="card-premium space-y-4">
-          <h2 className="text-lg font-semibold text-slate-900">Prévia do cálculo</h2>
+        <div className="card-premium-padded space-y-5">
+          <h2 className="text-lg font-semibold text-ink">Prévia do cálculo</h2>
           {preview ? (
             <>
               <div className="grid grid-cols-2 gap-3">
