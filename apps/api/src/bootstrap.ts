@@ -20,8 +20,12 @@ export async function createNestApp(): Promise<{
 }> {
   const expressApp = express();
   const adapter = new ExpressAdapter(expressApp);
-  const app = await NestFactory.create(AppModule, adapter, { bufferLogs: true });
-  app.useLogger(app.get(Logger));
+  const app = await NestFactory.create(AppModule, adapter, {
+    bufferLogs: !process.env.VERCEL,
+  });
+  if (!process.env.VERCEL) {
+    app.useLogger(app.get(Logger));
+  }
 
   const config = app.get(ConfigService);
 

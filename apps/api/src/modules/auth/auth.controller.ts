@@ -13,6 +13,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
 import { Public } from '../../common/decorators/public.decorator';
+import { clearCookie, setCookie } from '../../common/http/cookies';
 import {
   AuthUser,
   CurrentUser,
@@ -59,11 +60,11 @@ export class AuthController {
 
   private setRefreshCookie(res: Response, refreshToken: string) {
     const maxAge = this.config.get<number>('jwt.refreshTtl', 2592000) * 1000;
-    res.cookie(REFRESH_COOKIE, refreshToken, this.refreshCookieOptions(maxAge));
+    setCookie(res, REFRESH_COOKIE, refreshToken, this.refreshCookieOptions(maxAge));
   }
 
   private clearRefreshCookie(res: Response) {
-    res.clearCookie(REFRESH_COOKIE, this.refreshCookieOptions());
+    clearCookie(res, REFRESH_COOKIE, this.refreshCookieOptions());
   }
 
   /** Remove o refresh token do corpo da resposta (fica apenas no cookie). */

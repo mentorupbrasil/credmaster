@@ -28,6 +28,8 @@ import { ParametrosModule } from './modules/parametros/parametros.module';
 import { HealthModule } from './modules/health/health.module';
 import { SeedModule } from './modules/seed/seed.module';
 
+const isVercel = Boolean(process.env.VERCEL);
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -36,16 +38,24 @@ import { SeedModule } from './modules/seed/seed.module';
       load: [configuration],
       validate: validateEnv,
     }),
-    LoggerModule.forRoot({
-      pinoHttp: {
-        transport:
-          process.env.NODE_ENV !== 'production'
-            ? { target: 'pino-pretty', options: { singleLine: true } }
-            : undefined,
-        redact: ['req.headers.authorization', 'req.headers.cookie', '*.passwordHash'],
-        autoLogging: true,
-      },
-    }),
+    ...(isVercel
+      ? []
+      : [
+          LoggerModule.forRoot({
+            pinoHttp: {
+              transport:
+                process.env.NODE_ENV !== 'production'
+                  ? { target: 'pino-pretty', options: { singleLine: true } }
+                  : undefined,
+              redact: [
+                'req.headers.authorization',
+                'req.headers.cookie',
+                '*.passwordHash',
+              ],
+              autoLogging: true,
+            },
+          }),
+        ]),
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => [

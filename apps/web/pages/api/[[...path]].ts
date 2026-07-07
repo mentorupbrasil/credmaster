@@ -1,6 +1,5 @@
 import fs from 'fs';
 import path from 'path';
-import { createRequire } from 'module';
 import type { NextApiRequest, NextApiResponse } from 'next';
 
 export const config = {
@@ -14,40 +13,56 @@ type NestExpress = (
   next: (err?: unknown) => void,
 ) => void;
 
+declare const __non_webpack_require__: NodeRequire;
+
 let cachedApp: NestExpress | undefined;
+
+function runtimeRequire(): NodeRequire {
+  if (typeof __non_webpack_require__ === 'function') {
+    return __non_webpack_require__;
+  }
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  return require;
+}
+
+function resolveBundleRoot(): string {
+  const candidates = [
+    path.join(process.cwd(), '.api-dist'),
+    path.join(process.cwd(), 'apps/web/.api-dist'),
+  ];
+  for (const root of candidates) {
+    if (fs.existsSync(path.join(root, 'apps/api/dist/serverless.js'))) {
+      return root;
+    }
+  }
+  throw new Error(
+    'API não empacotada (.api-dist ausente). Verifique o build do Vercel.',
+  );
+}
 
 function patchNodePath(bundleRoot: string) {
   const vendor = path.join(bundleRoot, 'vendor');
-  if (!fs.existsSync(vendor)) return;
+  if (!fs.existsSync(vendor)) {
+    throw new Error(
+      `Dependências da API ausentes: falta ${vendor}. Verifique outputFileTracingIncludes.`,
+    );
+  }
   const sep = path.delimiter;
   process.env.NODE_PATH = [vendor, process.env.NODE_PATH].filter(Boolean).join(sep);
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  require('module').Module._initPaths();
+  runtimeRequire()('module').Module._initPaths();
 }
 
 async function loadExpressApp(): Promise<NestExpress> {
   if (cachedApp) return cachedApp;
 
-  const bundleRoot = path.join(process.cwd(), '.api-dist');
-  const serverlessPath = path.join(bundleRoot, 'apps/api/dist/serverless.js');
-  const vendorPath = path.join(bundleRoot, 'vendor');
-
-  if (!fs.existsSync(serverlessPath)) {
-    throw new Error(
-      `API não empacotada: falta ${serverlessPath}. Verifique o build do Vercel.`,
-    );
-  }
-  if (!fs.existsSync(vendorPath)) {
-    throw new Error(
-      `Dependências da API ausentes: falta ${vendorPath}. Verifique outputFileTracingIncludes.`,
-    );
-  }
-
+  const bundleRoot = resolveBundleRoot();
   patchNodePath(bundleRoot);
 
-  const requireFrom = createRequire(path.join(process.cwd(), 'package.json'));
-  requireFrom('reflect-metadata');
-  const mod = requireFrom(serverlessPath) as Record<string, unknown>;
+  const req = runtimeRequire();
+  req('reflect-metadata');
+
+  const serverlessPath = path.join(bundleRoot, 'apps/api/dist/serverless.js');
+  const mod = req(serverlessPath) as Record<string, unknown>;
   const getApp = mod.getExpressApp ?? mod.getServerlessHandler;
 
   if (typeof getApp !== 'function') {
