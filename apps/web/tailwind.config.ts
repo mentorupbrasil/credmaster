@@ -2,6 +2,7 @@ import type { Config } from 'tailwindcss';
 
 const config: Config = {
   content: ['./src/**/*.{ts,tsx}'],
+  darkMode: 'class',
   theme: {
     extend: {
       fontFamily: {
@@ -13,21 +14,21 @@ const config: Config = {
       },
       colors: {
         ink: {
-          DEFAULT: '#111827',
-          muted: '#4B5563',
-          subtle: '#6B7280',
-          faint: '#9CA3AF',
+          DEFAULT: 'rgb(var(--color-ink) / <alpha-value>)',
+          muted: 'rgb(var(--color-ink-muted) / <alpha-value>)',
+          subtle: 'rgb(var(--color-ink-subtle) / <alpha-value>)',
+          faint: 'rgb(var(--color-ink-faint) / <alpha-value>)',
         },
         surface: {
-          DEFAULT: '#F9FAFB',
-          muted: '#F3F4F6',
-          elevated: '#FFFFFF',
+          DEFAULT: 'rgb(var(--color-surface) / <alpha-value>)',
+          muted: 'rgb(var(--color-surface-muted) / <alpha-value>)',
+          elevated: 'rgb(var(--color-surface-elevated) / <alpha-value>)',
         },
         sidebar: {
-          DEFAULT: '#FFFFFF',
-          border: '#E5E7EB',
-          muted: '#6B7280',
-          active: '#EEF2FF',
+          DEFAULT: 'rgb(var(--color-sidebar) / <alpha-value>)',
+          border: 'rgb(var(--color-sidebar-border) / <alpha-value>)',
+          muted: 'rgb(var(--color-sidebar-muted) / <alpha-value>)',
+          active: 'rgb(var(--color-sidebar-active) / <alpha-value>)',
         },
         accent: {
           DEFAULT: '#4F46E5',
@@ -58,9 +59,9 @@ const config: Config = {
           700: '#B45309',
         },
         border: {
-          DEFAULT: '#E5E7EB',
-          strong: '#D1D5DB',
-          subtle: '#F3F4F6',
+          DEFAULT: 'rgb(var(--color-border) / <alpha-value>)',
+          strong: 'rgb(var(--color-border-strong) / <alpha-value>)',
+          subtle: 'rgb(var(--color-border-subtle) / <alpha-value>)',
         },
       },
       boxShadow: {

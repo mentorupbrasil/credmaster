@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { LogOut, Menu, X, type LucideIcon } from 'lucide-react';
 import { BrandMark } from '@/components/BrandMark';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 export interface NavItem {
   href: string;
@@ -90,6 +91,7 @@ export function AppShell({
             <p className="truncate text-sm font-medium text-ink">{userName ?? 'Usuário'}</p>
             <p className="text-2xs text-ink-faint">Administrador</p>
           </div>
+          <ThemeToggle />
         </div>
         <button type="button" onClick={onLogout} className="sidebar-link w-full text-left">
           <LogOut className="h-4 w-4" strokeWidth={1.75} />
@@ -100,16 +102,16 @@ export function AppShell({
   );
 
   return (
-    <div className="flex min-h-screen bg-surface">
-      <aside className="hidden w-[var(--sidebar-width)] shrink-0 flex-col border-r border-sidebar-border bg-sidebar md:flex">
-        <div className="flex h-full flex-col py-5">{navContent}</div>
+    <div className="flex h-screen overflow-hidden bg-surface">
+      <aside className="hidden h-screen w-[var(--sidebar-width)] shrink-0 flex-col overflow-hidden border-r border-sidebar-border bg-sidebar md:flex">
+        <div className="flex h-full min-h-0 flex-col py-5">{navContent}</div>
       </aside>
 
       {mobileOpen && (
         <div className="fixed inset-0 z-40 bg-black/20 md:hidden" onClick={() => setMobileOpen(false)} />
       )}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-[var(--sidebar-width)] flex-col border-r border-sidebar-border bg-sidebar py-5 transition-transform md:hidden ${
+        className={`fixed inset-y-0 left-0 z-50 flex h-screen w-[var(--sidebar-width)] flex-col overflow-hidden border-r border-sidebar-border bg-sidebar py-5 transition-transform md:hidden ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -121,11 +123,11 @@ export function AppShell({
         >
           <X className="h-5 w-5" />
         </button>
-        <div className="flex h-full flex-col px-2">{navContent}</div>
+        <div className="flex h-full min-h-0 flex-col px-2">{navContent}</div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 border-b border-border bg-white">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <header className="shrink-0 border-b border-border bg-sidebar">
           <div className="flex items-center justify-between gap-4 px-5 py-3 sm:px-8">
             <div className="flex min-w-0 items-center gap-3">
               <button
@@ -149,13 +151,14 @@ export function AppShell({
                   month: 'long',
                 }).format(new Date())}
               </span>
+              <ThemeToggle className="md:hidden" />
               <button type="button" onClick={onLogout} className="btn-ghost btn-sm md:hidden">
                 Sair
               </button>
             </div>
           </div>
         </header>
-        <main className="flex-1 px-5 py-6 sm:px-8 sm:py-8">
+        <main className="min-h-0 flex-1 overflow-y-auto px-5 py-6 sm:px-8 sm:py-8">
           <div className="page-shell-wide">{children}</div>
         </main>
       </div>

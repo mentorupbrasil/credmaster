@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { BrandMark } from '@/components/BrandMark';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 export function AuthLayout({
   title,
@@ -15,7 +16,10 @@ export function AuthLayout({
   footer?: React.ReactNode;
 }) {
   return (
-    <div className="auth-shell">
+    <div className="auth-shell relative">
+      <div className="absolute right-4 top-4 sm:right-6 sm:top-6">
+        <ThemeToggle />
+      </div>
       <div className="mb-8 text-center">
         <Link href="/login" className="inline-flex items-center gap-3">
           <BrandMark className="h-10 w-10" />

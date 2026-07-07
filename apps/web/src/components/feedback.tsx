@@ -51,9 +51,9 @@ interface DialogState {
 }
 
 const toastStyles: Record<ToastTipo, { box: string; icon: typeof CheckCircle2 }> = {
-  success: { box: 'border-border bg-white text-success-700', icon: CheckCircle2 },
-  error: { box: 'border-danger/30 bg-white text-danger-700', icon: AlertCircle },
-  info: { box: 'border-border bg-white text-ink-muted', icon: Info },
+  success: { box: 'border-border bg-surface-elevated text-success-700', icon: CheckCircle2 },
+  error: { box: 'border-danger/30 bg-surface-elevated text-danger-700', icon: AlertCircle },
+  info: { box: 'border-border bg-surface-elevated text-ink-muted', icon: Info },
 };
 
 export function FeedbackProvider({ children }: { children: React.ReactNode }) {
@@ -126,7 +126,7 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
           onClick={() => fechar(dialog.modo === 'prompt' ? null : false)}
         >
           <div
-            className="w-full max-w-md rounded-xl border border-border bg-white p-6 shadow-sm"
+            className="w-full max-w-md rounded-xl border border-border bg-surface-elevated p-6 shadow-sm"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="font-display text-lg font-semibold text-ink">{dialog.opts.titulo}</h3>

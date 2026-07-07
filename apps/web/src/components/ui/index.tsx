@@ -523,7 +523,7 @@ export function Modal({
       aria-modal="true"
     >
       <div
-        className={`w-full ${maxW} rounded-xl border border-border bg-white shadow-sm`}
+        className={`w-full ${maxW} rounded-xl border border-border bg-surface-elevated shadow-sm`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="border-b border-border-subtle px-6 py-5">
@@ -566,7 +566,7 @@ export function Drawer({
   return (
     <>
       <div className="fixed inset-0 z-[110] bg-black/30" onClick={onClose} />
-      <aside className="fixed inset-y-0 right-0 z-[120] flex w-full max-w-lg flex-col border-l border-border bg-white shadow-card">
+      <aside className="fixed inset-y-0 right-0 z-[120] flex w-full max-w-lg flex-col border-l border-border bg-surface-elevated shadow-card">
         <div className="flex items-center justify-between border-b border-border-subtle px-6 py-4">
           <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
           <button type="button" className="btn-icon" onClick={onClose} aria-label="Fechar">

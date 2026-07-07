@@ -5,6 +5,40 @@
 :root {
   color-scheme: light;
   --sidebar-width: 16rem;
+
+  --color-ink: 17 24 39;
+  --color-ink-muted: 75 85 99;
+  --color-ink-subtle: 107 114 128;
+  --color-ink-faint: 156 163 175;
+  --color-surface: 249 250 251;
+  --color-surface-muted: 243 244 246;
+  --color-surface-elevated: 255 255 255;
+  --color-sidebar: 255 255 255;
+  --color-sidebar-border: 229 231 235;
+  --color-sidebar-muted: 107 114 128;
+  --color-sidebar-active: 238 242 255;
+  --color-border: 229 231 235;
+  --color-border-strong: 209 213 219;
+  --color-border-subtle: 243 244 246;
+}
+
+.dark {
+  color-scheme: dark;
+
+  --color-ink: 249 250 251;
+  --color-ink-muted: 209 213 219;
+  --color-ink-subtle: 156 163 175;
+  --color-ink-faint: 107 114 128;
+  --color-surface: 15 17 23;
+  --color-surface-muted: 26 29 39;
+  --color-surface-elevated: 21 24 33;
+  --color-sidebar: 21 24 33;
+  --color-sidebar-border: 42 47 58;
+  --color-sidebar-muted: 156 163 175;
+  --color-sidebar-active: 30 27 75;
+  --color-border: 42 47 58;
+  --color-border-strong: 55 65 81;
+  --color-border-subtle: 31 36 48;
 }
 
 @layer base {
@@ -45,7 +79,7 @@
 
 /* Surfaces — limpas, sem efeitos */
 .card-premium {
-  @apply rounded-xl border border-border bg-white shadow-xs;
+  @apply rounded-xl border border-border bg-surface-elevated shadow-xs;
 }
 
 .card-premium-padded {
@@ -53,7 +87,7 @@
 }
 
 .panel {
-  @apply overflow-hidden rounded-xl border border-border bg-white shadow-xs;
+  @apply overflow-hidden rounded-xl border border-border bg-surface-elevated shadow-xs;
 }
 
 .panel-header {
@@ -66,23 +100,23 @@
 
 /* KPI cards */
 .metric-card {
-  @apply rounded-xl border border-border bg-white p-5 shadow-xs;
+  @apply rounded-xl border border-border bg-surface-elevated p-5 shadow-xs;
 }
 
 .metric-card-accent-blue {
-  @apply border-l-[3px] border-l-accent bg-white;
+  @apply border-l-[3px] border-l-accent bg-surface-elevated;
 }
 
 .metric-card-accent-green {
-  @apply border-l-[3px] border-l-success bg-white;
+  @apply border-l-[3px] border-l-success bg-surface-elevated;
 }
 
 .metric-card-accent-red {
-  @apply border-l-[3px] border-l-danger bg-white;
+  @apply border-l-[3px] border-l-danger bg-surface-elevated;
 }
 
 .metric-card-accent-amber {
-  @apply border-l-[3px] border-l-warning bg-white;
+  @apply border-l-[3px] border-l-warning bg-surface-elevated;
 }
 
 .metric-card-label {
@@ -119,7 +153,7 @@
 
 /* Hero KPI */
 .hero-metric {
-  @apply rounded-xl border border-border bg-white p-5 shadow-xs;
+  @apply rounded-xl border border-border bg-surface-elevated p-5 shadow-xs;
 }
 
 .hero-metric-blue {
@@ -152,7 +186,7 @@
 }
 
 .btn-ghost {
-  @apply btn border border-border bg-white text-ink-muted hover:bg-surface-muted hover:text-ink;
+  @apply btn border border-border bg-surface-elevated text-ink-muted hover:bg-surface-muted hover:text-ink;
 }
 
 .btn-danger {
@@ -164,12 +198,12 @@
 }
 
 .btn-icon {
-  @apply inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-white text-ink-subtle hover:bg-surface-muted hover:text-ink;
+  @apply inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-surface-elevated text-ink-subtle hover:bg-surface-muted hover:text-ink;
 }
 
 /* Forms */
 .input {
-  @apply w-full rounded-lg border border-border bg-white px-3 py-2.5 text-sm text-ink outline-none transition placeholder:text-ink-faint focus:border-accent focus:ring-2 focus:ring-accent/20;
+  @apply w-full rounded-lg border border-border bg-surface-elevated px-3 py-2.5 text-sm text-ink outline-none transition placeholder:text-ink-faint focus:border-accent focus:ring-2 focus:ring-accent/20;
 }
 
 .input-search {
@@ -258,7 +292,7 @@
 }
 
 .tab-item-active {
-  @apply tab-item bg-white text-ink shadow-xs;
+  @apply tab-item bg-surface-elevated text-ink shadow-xs;
 }
 
 /* Skeleton */
@@ -276,7 +310,7 @@
 }
 
 .auth-card {
-  @apply w-full max-w-[400px] rounded-xl border border-border bg-white p-8 shadow-sm;
+  @apply w-full max-w-[400px] rounded-xl border border-border bg-surface-elevated p-8 shadow-sm;
 }
 
 /* Links */
@@ -290,12 +324,12 @@
 
 /* Executive banner */
 .executive-banner {
-  @apply rounded-xl border border-border bg-white p-5 shadow-xs sm:p-6;
+  @apply rounded-xl border border-border bg-surface-elevated p-5 shadow-xs sm:p-6;
 }
 
 /* Quick actions */
 .quick-action {
-  @apply flex items-center gap-3 rounded-xl border border-border bg-white px-4 py-3 hover:border-border-strong hover:bg-surface;
+  @apply flex items-center gap-3 rounded-xl border border-border bg-surface-elevated px-4 py-3 hover:border-border-strong hover:bg-surface;
 }
 
 /* Avatar */
@@ -330,4 +364,50 @@
 
 .cell-link {
   @apply font-medium text-accent-600 hover:text-accent-700 hover:underline;
+}
+
+/* Dark mode — badges e ícones */
+.dark .badge-success {
+  background-color: rgb(5 150 105 / 0.18);
+  color: #34d399;
+}
+
+.dark .badge-danger {
+  background-color: rgb(220 38 38 / 0.18);
+  color: #f87171;
+}
+
+.dark .badge-warning {
+  background-color: rgb(217 119 6 / 0.18);
+  color: #fbbf24;
+}
+
+.dark .badge-info {
+  background-color: rgb(79 70 229 / 0.18);
+  color: #a5b4fc;
+}
+
+.dark .badge-neutral {
+  @apply bg-surface-muted text-ink-muted;
+}
+
+.dark .metric-card-icon-blue,
+.dark .avatar {
+  background-color: rgb(79 70 229 / 0.18);
+  color: #a5b4fc;
+}
+
+.dark .metric-card-icon-green {
+  background-color: rgb(5 150 105 / 0.18);
+  color: #34d399;
+}
+
+.dark .metric-card-icon-red {
+  background-color: rgb(220 38 38 / 0.18);
+  color: #f87171;
+}
+
+.dark .metric-card-icon-amber {
+  background-color: rgb(217 119 6 / 0.18);
+  color: #fbbf24;
 }
