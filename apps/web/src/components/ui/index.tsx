@@ -268,9 +268,12 @@ export function DataTable({
 /* ─── Loading ─── */
 export function Spinner({ label = 'Carregando…' }: { label?: string }) {
   return (
-    <div className="flex flex-col items-center justify-center py-20">
-      <div className="h-9 w-9 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-      <p className="mt-4 text-sm text-slate-400">{label}</p>
+    <div className="flex flex-col items-center justify-center py-24">
+      <div className="relative h-10 w-10">
+        <div className="absolute inset-0 rounded-full border-2 border-accent/15" />
+        <div className="absolute inset-0 animate-spin rounded-full border-2 border-transparent border-t-accent-600" />
+      </div>
+      <p className="mt-5 text-sm font-medium text-ink-subtle">{label}</p>
     </div>
   );
 }
@@ -325,8 +328,8 @@ export function SectionCard({
     <div className="panel">
       <div className="panel-header">
         <div>
-          <h2 className="text-base font-semibold text-slate-900">{title}</h2>
-          {description && <p className="mt-0.5 text-xs text-slate-500">{description}</p>}
+          <h2 className="font-display text-base font-semibold text-ink">{title}</h2>
+          {description && <p className="mt-1 text-sm text-ink-subtle">{description}</p>}
         </div>
         {action}
       </div>
@@ -383,7 +386,7 @@ export function Tabs({
         >
           {tab.label}
           {tab.count !== undefined && (
-            <span className="ml-1.5 rounded-full bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold text-slate-600">
+            <span className="ml-1.5 rounded-full bg-accent-100 px-1.5 py-0.5 text-[10px] font-bold text-accent-700">
               {tab.count}
             </span>
           )}
@@ -407,7 +410,7 @@ export function Pagination({
 }) {
   if (totalPages <= 1) return null;
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-500">
+    <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-ink-subtle">
       <span>
         {total} registro{total !== 1 ? 's' : ''} · página {page} de {totalPages}
       </span>
@@ -791,6 +794,86 @@ export function HeroMetric({
           <Icon className="h-5 w-5" strokeWidth={2} />
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ─── Avatar ─── */
+export function Avatar({ name, size = 'sm' }: { name: string; size?: 'sm' | 'md' }) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const ini =
+    parts.length >= 2
+      ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+      : (parts[0]?.slice(0, 2) ?? '?').toUpperCase();
+  return (
+    <span className={`avatar ${size === 'md' ? 'avatar-md' : 'avatar-sm'}`}>{ini}</span>
+  );
+}
+
+/* ─── Executive banner ─── */
+export function ExecutiveBanner({
+  health,
+  healthLabel,
+  stats,
+}: {
+  health: 'good' | 'warning' | 'critical';
+  healthLabel: string;
+  stats: { label: string; value: React.ReactNode }[];
+}) {
+  const healthStyles = {
+    good: 'border-success/25 bg-success-50/50 text-success-700',
+    warning: 'border-warning/25 bg-warning-50/50 text-warning-700',
+    critical: 'border-danger/25 bg-danger-50/50 text-danger-700',
+  };
+  return (
+    <div className="executive-banner">
+      <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p className="text-label">Saúde da carteira</p>
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <span
+              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-wide ${healthStyles[health]}`}
+            >
+              <span className="h-2 w-2 animate-pulse-soft rounded-full bg-current" />
+              {healthLabel}
+            </span>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:gap-8">
+          {stats.map((s) => (
+            <div key={s.label}>
+              <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{s.label}</p>
+              <p className="mt-1 font-display text-lg font-bold text-ink text-money">{s.value}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Quick actions ─── */
+export function QuickActions({
+  actions,
+}: {
+  actions: { href: string; label: string; desc: string; icon: LucideIcon }[];
+}) {
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {actions.map((a) => {
+        const Icon = a.icon;
+        return (
+          <Link key={a.href} href={a.href} className="quick-action group">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-50 text-accent-600 transition group-hover:bg-accent-100">
+              <Icon className="h-[18px] w-[18px]" strokeWidth={1.75} />
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-ink">{a.label}</p>
+              <p className="truncate text-xs text-ink-subtle">{a.desc}</p>
+            </div>
+          </Link>
+        );
+      })}
     </div>
   );
 }

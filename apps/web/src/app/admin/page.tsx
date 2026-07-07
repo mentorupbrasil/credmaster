@@ -11,6 +11,9 @@ import {
   Banknote,
   CalendarClock,
   CircleDollarSign,
+  UserPlus,
+  CreditCard,
+  PhoneCall,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { brl, dataBR } from '@/lib/format';
@@ -28,6 +31,9 @@ import {
   DonutChart,
   ChartLegend,
   FinanceBarChart,
+  ExecutiveBanner,
+  QuickActions,
+  Avatar,
 } from '@/components/ui';
 
 interface DashboardData {
@@ -112,11 +118,74 @@ export default function AdminDashboard() {
     { name: 'Recebido', value: Number(data.graficoRecebimento.recebidoMes) },
   ];
 
+  const pctRecebido =
+    Number(data.graficoRecebimento.previsto) > 0
+      ? Math.round(
+          (Number(data.graficoRecebimento.recebidoMes) /
+            Number(data.graficoRecebimento.previsto)) *
+            100,
+        )
+      : 0;
+
+  const health =
+    data.emAtraso > 0 && Number(data.carteiraEmAtraso) > Number(data.valorTotalReceber) * 0.2
+      ? 'critical'
+      : data.emAtraso > 0
+        ? 'warning'
+        : 'good';
+
+  const healthLabel =
+    health === 'critical'
+      ? 'Atenção crítica'
+      : health === 'warning'
+        ? 'Monitorar inadimplência'
+        : 'Carteira saudável';
+
   return (
     <div className="space-y-8">
       <PageHeader
         title="Dashboard executivo"
         subtitle={`Visão consolidada da carteira · referência ${dataBR(data.data)}`}
+      />
+
+      <ExecutiveBanner
+        health={health}
+        healthLabel={healthLabel}
+        stats={[
+          { label: 'Meta do mês', value: `${pctRecebido}%` },
+          { label: 'Contratos ativos', value: data.emprestimosAtivos },
+          { label: 'Em atraso', value: data.emAtraso },
+          { label: 'Clientes ativos', value: data.clientesAtivos },
+        ]}
+      />
+
+      <QuickActions
+        actions={[
+          {
+            href: '/admin/clientes/novo',
+            label: 'Novo cliente',
+            desc: 'Cadastrar na base',
+            icon: UserPlus,
+          },
+          {
+            href: '/admin/emprestimos/novo',
+            label: 'Novo empréstimo',
+            desc: 'Criar contrato simples',
+            icon: Wallet,
+          },
+          {
+            href: '/admin/recebimentos',
+            label: 'Registrar pagamento',
+            desc: 'Baixa parcial ou total',
+            icon: CreditCard,
+          },
+          {
+            href: '/admin/cobranca',
+            label: 'Cobrança',
+            desc: 'Inadimplentes e WhatsApp',
+            icon: PhoneCall,
+          },
+        ]}
       />
 
       {/* Hero KPIs */}
@@ -200,13 +269,18 @@ export default function AdminDashboard() {
             >
               {data.vencendoHojeLista.map((item) => (
                 <tr key={item.emprestimoId}>
-                  <td className="font-medium text-slate-800">{item.clienteNome}</td>
                   <td>
-                    <Link href={`/admin/emprestimos/${item.emprestimoId}`} className="font-medium text-primary hover:underline">
+                    <div className="flex items-center gap-3">
+                      <Avatar name={item.clienteNome} />
+                      <span className="cell-primary">{item.clienteNome}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <Link href={`/admin/emprestimos/${item.emprestimoId}`} className="cell-link">
                       {item.numeroContrato}
                     </Link>
                   </td>
-                  <td className="text-right font-semibold">{brl(item.saldoRestante)}</td>
+                  <td className="text-right cell-money">{brl(item.saldoRestante)}</td>
                 </tr>
               ))}
             </DataTable>
@@ -235,9 +309,14 @@ export default function AdminDashboard() {
             >
               {data.atrasadosLista.map((item) => (
                 <tr key={item.emprestimoId}>
-                  <td className="font-medium">{item.clienteNome}</td>
+                  <td>
+                    <div className="flex items-center gap-3">
+                      <Avatar name={item.clienteNome} />
+                      <span className="cell-primary">{item.clienteNome}</span>
+                    </div>
+                  </td>
                   <td className="font-semibold text-danger">{item.diasAtraso} dias</td>
-                  <td className="text-right font-semibold text-danger">{brl(item.saldoRestante)}</td>
+                  <td className="text-right cell-money-danger">{brl(item.saldoRestante)}</td>
                 </tr>
               ))}
             </DataTable>
@@ -275,9 +354,14 @@ export default function AdminDashboard() {
             >
               {data.ultimosPagamentos.map((p) => (
                 <tr key={p.id}>
-                  <td className="text-slate-600">{dataBR(p.dataPagamento)}</td>
-                  <td>{p.clienteNome}</td>
-                  <td className="text-right font-semibold text-success">{brl(p.valor)}</td>
+                  <td className="text-ink-subtle">{dataBR(p.dataPagamento)}</td>
+                  <td>
+                    <div className="flex items-center gap-3">
+                      <Avatar name={p.clienteNome} />
+                      <span>{p.clienteNome}</span>
+                    </div>
+                  </td>
+                  <td className="text-right cell-money-success">{brl(p.valor)}</td>
                 </tr>
               ))}
             </DataTable>

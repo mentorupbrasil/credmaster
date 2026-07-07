@@ -361,3 +361,77 @@
 .card {
   @apply card-premium;
 }
+
+/* Auth */
+.auth-card {
+  @apply relative overflow-hidden rounded-3xl border border-border bg-surface-elevated/90 p-8 shadow-card backdrop-blur-sm sm:p-10;
+}
+
+.auth-card::after {
+  content: '';
+  @apply pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/40 to-transparent;
+}
+
+/* Links */
+.link {
+  @apply font-medium text-accent-600 underline-offset-4 transition hover:text-accent-700 hover:underline;
+}
+
+.link-subtle {
+  @apply text-sm text-ink-subtle underline-offset-4 transition hover:text-accent-600 hover:underline;
+}
+
+/* Executive banner */
+.executive-banner {
+  @apply relative overflow-hidden rounded-3xl border border-border p-6 shadow-card sm:p-8;
+  background: linear-gradient(135deg, rgba(238, 242, 255, 0.85) 0%, #fff 40%, rgba(236, 253, 245, 0.35) 100%);
+}
+
+.executive-banner::before {
+  content: '';
+  @apply pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-accent/10 blur-3xl;
+}
+
+/* Quick actions */
+.quick-action {
+  @apply flex items-center gap-3 rounded-2xl border border-border bg-surface-elevated px-4 py-3.5 shadow-xs transition-all duration-200 hover:border-accent/25 hover:shadow-card;
+  transition-timing-function: var(--ease-out-expo);
+}
+
+.quick-action:hover {
+  transform: translateY(-1px);
+}
+
+/* Avatar */
+.avatar {
+  @apply flex shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-accent-100 to-accent-200 font-display text-xs font-bold text-accent-700;
+}
+
+.avatar-sm {
+  @apply h-8 w-8 text-[11px];
+}
+
+.avatar-md {
+  @apply h-10 w-10 text-sm;
+}
+
+/* Table cell helpers */
+.cell-primary {
+  @apply font-semibold text-ink;
+}
+
+.cell-money {
+  @apply font-display font-bold text-money text-ink;
+}
+
+.cell-money-success {
+  @apply cell-money text-success;
+}
+
+.cell-money-danger {
+  @apply cell-money text-danger;
+}
+
+.cell-link {
+  @apply font-semibold text-accent-600 transition hover:text-accent-700 hover:underline;
+}

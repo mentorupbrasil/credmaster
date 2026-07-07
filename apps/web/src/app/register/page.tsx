@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { AuthLayout } from '@/components/AuthLayout';
+import { FormField } from '@/components/ui';
 import { api } from '@/lib/api';
 
 export default function RegisterPage() {
@@ -37,45 +39,45 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-brand-700 to-brand-900 p-4">
-      <form onSubmit={onSubmit} className="card w-full max-w-md space-y-4">
-        <h2 className="text-lg font-semibold">Criar conta</h2>
-        {erro && (
-          <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{erro}</div>
-        )}
-        <div>
-          <label className="label">Nome completo</label>
-          <input className="input" value={form.nome} onChange={set('nome')} required />
-        </div>
-        <div>
-          <label className="label">E-mail</label>
-          <input className="input" type="email" value={form.email} onChange={set('email')} required />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="label">CPF</label>
-            <input className="input" value={form.cpf} onChange={set('cpf')} placeholder="Somente dígitos" required />
-          </div>
-          <div>
-            <label className="label">Telefone</label>
-            <input className="input" value={form.telefone} onChange={set('telefone')} required />
-          </div>
-        </div>
-        <div>
-          <label className="label">Senha</label>
-          <input className="input" type="password" value={form.senha} onChange={set('senha')} required />
-          <p className="mt-1 text-xs text-slate-400">Mín. 8 caracteres, com maiúscula, minúscula e número.</p>
-        </div>
-        <button className="btn-primary w-full" disabled={loading}>
-          {loading ? 'Enviando…' : 'Cadastrar'}
-        </button>
-        <p className="text-center text-sm text-slate-500">
+    <AuthLayout
+      title="Criar sua conta"
+      subtitle="Cadastre-se para acompanhar empréstimos e pagamentos pelo portal do cliente."
+      footer={
+        <p className="text-center text-sm text-ink-subtle">
           Já tem conta?{' '}
-          <Link href="/login" className="font-medium text-brand-600">
-            Entrar
+          <Link href="/login" className="link">
+            Fazer login
           </Link>
         </p>
+      }
+    >
+      <form onSubmit={onSubmit} className="space-y-5">
+        {erro && (
+          <div className="rounded-xl border border-danger/20 bg-danger-50 px-4 py-3 text-sm text-danger-700">
+            {erro}
+          </div>
+        )}
+        <FormField label="Nome completo">
+          <input className="input" value={form.nome} onChange={set('nome')} required />
+        </FormField>
+        <FormField label="E-mail">
+          <input className="input" type="email" value={form.email} onChange={set('email')} required />
+        </FormField>
+        <div className="grid grid-cols-2 gap-4">
+          <FormField label="CPF">
+            <input className="input" value={form.cpf} onChange={set('cpf')} placeholder="00000000000" required />
+          </FormField>
+          <FormField label="Telefone">
+            <input className="input" value={form.telefone} onChange={set('telefone')} required />
+          </FormField>
+        </div>
+        <FormField label="Senha" hint="Mín. 8 caracteres, com maiúscula, minúscula e número.">
+          <input className="input" type="password" value={form.senha} onChange={set('senha')} required />
+        </FormField>
+        <button type="submit" className="btn-primary w-full !py-3" disabled={loading}>
+          {loading ? 'Criando conta…' : 'Criar conta'}
+        </button>
       </form>
-    </main>
+    </AuthLayout>
   );
 }

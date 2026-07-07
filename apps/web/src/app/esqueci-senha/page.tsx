@@ -2,7 +2,10 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { AuthLayout } from '@/components/AuthLayout';
+import { FormField } from '@/components/ui';
 import { api } from '@/lib/api';
+import { CheckCircle2 } from 'lucide-react';
 
 export default function EsqueciSenha() {
   const [email, setEmail] = useState('');
@@ -15,7 +18,7 @@ export default function EsqueciSenha() {
     try {
       await api.esqueciSenha(email);
     } catch {
-      // resposta é sempre genérica (anti-enumeração)
+      // resposta genérica anti-enumeração
     } finally {
       setEnviado(true);
       setLoading(false);
@@ -23,42 +26,44 @@ export default function EsqueciSenha() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-brand-700 to-brand-900 p-4">
-      <div className="w-full max-w-md">
-        <div className="mb-6 text-center text-white">
-          <h1 className="text-3xl font-bold">CredMaster</h1>
-        </div>
-        <div className="card space-y-4">
-          <h2 className="text-lg font-semibold">Redefinir senha</h2>
-          {enviado ? (
-            <p className="text-sm text-slate-600">
-              Se houver uma conta associada a esse e-mail, enviaremos um link para
-              redefinição da senha. Verifique sua caixa de entrada.
-            </p>
-          ) : (
-            <form onSubmit={onSubmit} className="space-y-4">
-              <div>
-                <label className="label">E-mail</label>
-                <input
-                  className="input"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-              <button className="btn-primary w-full" disabled={loading}>
-                {loading ? 'Enviando…' : 'Enviar link'}
-              </button>
-            </form>
-          )}
-          <p className="text-center text-sm text-slate-500">
-            <Link href="/login" className="font-medium text-brand-600">
-              Voltar ao login
-            </Link>
+    <AuthLayout
+      title="Redefinir senha"
+      subtitle="Informe seu e-mail e enviaremos instruções se a conta existir."
+      footer={
+        <p className="text-center text-sm text-ink-subtle">
+          <Link href="/login" className="link">
+            Voltar ao login
+          </Link>
+        </p>
+      }
+    >
+      {enviado ? (
+        <div className="flex flex-col items-center py-4 text-center">
+          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-success-50 text-success">
+            <CheckCircle2 className="h-7 w-7" strokeWidth={1.75} />
+          </div>
+          <p className="text-sm leading-relaxed text-ink-muted">
+            Se houver uma conta associada a esse e-mail, enviaremos um link para redefinição.
+            Verifique sua caixa de entrada.
           </p>
         </div>
-      </div>
-    </main>
+      ) : (
+        <form onSubmit={onSubmit} className="space-y-5">
+          <FormField label="E-mail">
+            <input
+              className="input"
+              type="email"
+              placeholder="seu@email.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </FormField>
+          <button type="submit" className="btn-primary w-full !py-3" disabled={loading}>
+            {loading ? 'Enviando…' : 'Enviar link de redefinição'}
+          </button>
+        </form>
+      )}
+    </AuthLayout>
   );
 }
